@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vivaqua — Restructuration Tableau Sinistres</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root {
+            --bg: #f0f4f8;
+            --surface: #ffffff;
+            --border: #d1d9e6;
+            --text: #1a2332;
+            --text2: #5a6577;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --success: #059669;
+            --success-bg: #d1fae5;
+            --warning: #d97706;
+            --warning-bg: #fef3c7;
+            --danger: #dc2626;
+            --danger-bg: #fee2e2;
+            --radius: 12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+        }
+
+        header p {
+            color: var(--text2);
+            font-size: 15px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* Drop zone */
+        .dropzone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 48px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #f8fafc;
+        }
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--accent);
+            background: #eff6ff;
+        }
+        .dropzone.loaded {
+            border-color: var(--success);
+            background: var(--success-bg);
+        }
+        .dropzone .icon { font-size: 48px; margin-bottom: 12px; display: block; }
+        .dropzone .label { font-size: 16px; font-weight: 500; }
+        .dropzone .sub { font-size: 13px; color: var(--text2); margin-top: 6px; }
+        .dropzone input { display: none; }
+
+        /* File info */
+        .file-info {
+            display: none;
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: var(--success-bg);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--success);
+            font-weight: 500;
+        }
+        .file-info.show { display: block; }
+
+        /* Columns preview */
+        .columns-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .col-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text2);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        .col-list {
+            list-style: none;
+            font-size: 13px;
+        }
+        .col-list li {
+            padding: 5px 10px;
+            border-radius: 6px;
+            margin-bottom: 3px;
+        }
+        .col-list .existing { background: #f1f5f9; }
+        .col-list .extracted { background: #eff6ff; color: var(--accent); font-weight: 500; }
+        .col-list .derived { background: #fef3c7; color: var(--warning); font-weight: 500; }
+
+        /* Process button */
+        .btn-process {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-process:hover:not(:disabled) { background: var(--accent-hover); }
+        .btn-process:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        /* Progress */
+        .progress-section { display: none; }
+        .progress-section.show { display: block; }
+        .progress-bar-track {
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+        .progress-text {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text2);
+        }
+
+        /* Results */
+        .results-section { display: none; }
+        .results-section.show { display: block; }
+
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            padding: 16px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card.success { background: var(--success-bg); color: var(--success); }
+        .stat-card.warning { background: var(--warning-bg); color: var(--warning); }
+        .stat-card.danger { background: var(--danger-bg); color: var(--danger); }
+        .stat-card .num { font-size: 32px; font-weight: 700; }
+        .stat-card .lbl { font-size: 12px; font-weight: 500; margin-top: 4px; }
+
+        .btn-download {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            border: none;
+            border-radius: var(--radius);
+            background: var(--success);
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 16px;
+        }
+        .btn-download:hover { background: #047857; }
+
+        /* Preview table */
+        .preview-wrap {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+        .preview-wrap table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .preview-wrap th {
+            background: #1e293b;
+            color: white;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        .preview-wrap td {
+            padding: 6px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .preview-wrap tr:nth-child(even) td { background: #f8fafc; }
+        .preview-wrap tr:hover td { background: #eff6ff; }
+
+        .preview-label {
+            font-size: 13px;
+            color: var(--text2);
+            margin-top: 12px;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+            color: var(--text2);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Vivaqua — Restructuration Sinistres</h1>
+            <p>Transforme le tableau brut en 28 colonnes structurées — traitement 100% local, instantané</p>
+        </header>
+
+        <!-- Step 1: Upload -->
+        <div class="card">
+            <h2><span class="step-num">1</span> Importer le fichier Excel</h2>
+            <div class="dropzone" id="dropzone">
+                <span class="icon">&#128196;</span>
+                <div class="label">Glissez le fichier ici ou cliquez pour parcourir</div>
+                <div class="sub">Fichier .xlsx du tableau Vivaqua (colonnes : Réf. Dap, Risque/ partie adverse, etc.)</div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+            <div class="file-info" id="fileInfo"></div>
+        </div>
+
+        <!-- Step 2: Columns info -->
+        <div class="card" id="columnsCard" style="display:none;">
+            <h2><span class="step-num">2</span> Colonnes détectées</h2>
+            <p style="font-size:14px; color:var(--text2); margin-bottom:12px;">
+                La colonne <strong>"Risque/ partie adverse"</strong> sera découpée automatiquement :
+            </p>
+            <div class="columns-grid">
+                <div class="col-section">
+                    <h3>Colonnes conservées</h3>
+                    <ul class="col-list" id="existingCols"></ul>
+                </div>
+                <div class="col-section">
+                    <h3>Colonnes extraites</h3>
+                    <ul class="col-list">
+                        <li class="extracted">Rue</li>
+                        <li class="extracted">Numéro</li>
+                        <li class="extracted">Code postal</li>
+                        <li class="extracted">Commune</li>
+                        <li class="extracted">Parties adverses</li>
+                        <li class="extracted">Assureur adverse</li>
+                        <li class="derived">Situation Dossier (depuis Commentaires)</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-top:20px;">
+                <button class="btn-process" id="btnProcess" onclick="processData()">
+                    Lancer la restructuration
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="card progress-section" id="progressSection">
+            <h2><span class="step-num">3</span> Traitement en cours</h2>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div class="progress-text" id="progressText">Initialisation...</div>
+        </div>
+
+        <!-- Results -->
+        <div class="card results-section" id="resultsSection">
+            <h2><span class="step-num">4</span> Résultats</h2>
+            <div class="stats-row">
+                <div class="stat-card success">
+                    <div class="num" id="statOk">0</div>
+                    <div class="lbl">Extraites</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="num" id="statPartial">0</div>
+                    <div class="lbl">Partielles</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="num" id="statEmpty">0</div>
+                    <div class="lbl">Sans adresse</div>
+                </div>
+            </div>
+            <div style="display:flex; gap:12px;">
+                <button class="btn-download" onclick="downloadResult()" style="flex:1;">
+                    Telecharger Excel (.xlsx)
+                </button>
+                <button class="btn-download" onclick="downloadPDF()" style="flex:1; background:#1B3A5C;">
+                    Telecharger Synthese PDF
+                </button>
+            </div>
+            <p class="preview-label" id="previewLabel"></p>
+            <div class="preview-wrap">
+                <table id="previewTable"></table>
+            </div>
+        </div>
+
+        <footer>
+            Outil interne DAP — Traitement 100% local (aucune donnée envoyée)
+        </footer>
+    </div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// PARSER VIVAQUA — Extraction regex "Risque/ partie adverse"
+// ═══════════════════════════════════════════════════════
+
+const CP_COMMUNE = {
+    "1000":"Bruxelles","1005":"Bruxelles","1006":"Bruxelles","1007":"Bruxelles",
+    "1008":"Bruxelles","1009":"Bruxelles","1010":"Bruxelles","1020":"Laeken",
+    "1030":"Schaerbeek","1040":"Etterbeek","1050":"Ixelles","1060":"Saint-Gilles",
+    "1070":"Anderlecht","1080":"Molenbeek-Saint-Jean","1081":"Koekelberg",
+    "1082":"Berchem-Sainte-Agathe","1083":"Ganshoren","1090":"Jette",
+    "1100":"Bruxelles","1120":"Neder-Over-Heembeek","1130":"Haren",
+    "1140":"Evere","1150":"Woluwe-Saint-Pierre","1160":"Auderghem",
+    "1170":"Watermael-Boitsfort","1180":"Uccle","1190":"Forest",
+    "1200":"Woluwe-Saint-Lambert","1210":"Saint-Josse-ten-Noode",
+    "1300":"Wavre","1301":"Bierges","1310":"La Hulpe","1320":"Beauvechain",
+    "1325":"Chaumont-Gistoux","1330":"Rixensart","1331":"Rosières",
+    "1340":"Ottignies-Louvain-la-Neuve","1348":"Louvain-la-Neuve",
+    "1350":"Orp-Jauche","1357":"Hélécine","1360":"Perwez","1367":"Ramillies",
+    "1370":"Jodoigne","1380":"Lasne","1390":"Grez-Doiceau","1400":"Nivelles",
+    "1410":"Waterloo","1420":"Braine-l'Alleud","1430":"Rebecq",
+    "1435":"Mont-Saint-Guibert","1440":"Braine-le-Château","1450":"Chastre",
+    "1457":"Walhain","1460":"Ittre","1470":"Genappe","1480":"Tubize",
+    "1490":"Court-Saint-Étienne","1500":"Halle","1560":"Hoeilaart",
+    "1600":"Sint-Pieters-Leeuw","1620":"Drogenbos","1630":"Linkebeek",
+    "1640":"Rhode-Saint-Genèse","1650":"Beersel","1700":"Dilbeek",
+    "1730":"Asse","1731":"Zellik","1740":"Ternat","1750":"Lennik",
+    "1780":"Wemmel","1785":"Merchtem","1800":"Vilvoorde","1830":"Machelen",
+    "1831":"Diegem","1850":"Grimbergen","1860":"Meise","1930":"Zaventem",
+    "1932":"Sint-Stevens-Woluwe","1933":"Sterrebeek","1950":"Kraainem",
+    "1970":"Wezembeek-Oppem","1980":"Zemst",
+    "3000":"Leuven","3080":"Tervuren","3090":"Overijse",
+};
+
+const COMMUNES_SET = new Set(Object.values(CP_COMMUNE).map(c => c.toLowerCase()));
+// Variantes
+["molenbeek","st-gilles","st-josse","scharbeek","woluwé-saint-lambert",
+ "woluwé-saint-pierre","woluwe","neder over heembeek"].forEach(c => COMMUNES_SET.add(c));
+
+const ASSUREURS = new Set(["AG","AXA","Ethias","Baloise","Allianz","KBC","DVV",
+    "Belfius","Vivium","P&V","Fidea","CED","AMMA","Ardenne Prévoyante",
+    "Federale","CBC","ING","Corona Direct","ACP","BALOISE","AG Insurance","TVM","Arag"]);
+
+const ASSUREURS_UPPER = [...ASSUREURS].map(a => ({name: a, upper: a.toUpperCase()}));
+
+function normalize(val) {
+    if (val == null) return "";
+    let s = String(val).trim();
+    if (["none","n/a","a/d","nan"].includes(s.toLowerCase())) return "";
+    // Excel serial date
+    if (typeof val === "number" && val > 40000 && val < 50000) {
+        const d = new Date((val - 25569) * 86400 * 1000);
+        return String(d.getDate()).padStart(2,'0') + '/' +
+               String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+    }
+    if (typeof val === "number" && val === Math.floor(val)) return String(val);
+    s = s.replace(/_x000d_/g, " ").replace(/\r\n/g, " ").replace(/\r/g, " ").replace(/\n/g, " ");
+    return s.replace(/\s+/g, " ").trim();
+}
+
+function preprocess(text) {
+    text = text.replace("10550","1050").replace(/ 190 /," 1190 ");
+    text = text.replace(/\b060\b/g, "1060");
+    text = text.replace(/,?\s*WSM\b/g, " 1080 Molenbeek-Saint-Jean");
+    text = text.replace(/,?\s*WSL\b/g, " 1200 Woluwe-Saint-Lambert");
+    text = text.replace(/,?\s*WSP\b/g, " 1150 Woluwe-Saint-Pierre");
+    text = text.replace(/(\d{4})-(\w)/g, "$1 - $2");
+    text = text.replace(/(\d+)\s*-\s*(\d{4})\b/g, "$1 $2");
+    text = text.replace(/(\d+)-\s+/g, "$1 - ");
+    text = text.replace(/([a-zA-ZÀ-ž])\/([a-zA-ZÀ-ž])/g, "$1 + $2");
+    return text;
+}
+
+function findCommuneByName(text) {
+    const lower = text.toLowerCase();
+    const sorted = [...COMMUNES_SET].sort((a,b) => b.length - a.length);
+    for (const c of sorted) {
+        const idx = lower.indexOf(c);
+        if (idx >= 0) {
+            const orig = text.substring(idx, idx + c.length);
+            return { name: titleCase(orig), start: idx, end: idx + c.length };
+        }
+    }
+    return null;
+}
+
+function titleCase(s) {
+    return s.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.substr(1).toLowerCase());
+}
+
+function extractPartiesAssureurs(rest) {
+    const result = { parties: "", assureur: "" };
+    if (!rest) return result;
+    const tokens = rest.split(/[+|]/);
+    const parties = [], assureurs = [];
+    for (let t of tokens) {
+        t = t.trim().replace(/^-+/, "").trim();
+        if (!t || t === "?") continue;
+        const clean = t.replace(/\(\d+\)/g, "").trim();
+        if (!clean || clean.length < 2) continue;
+        const upper = clean.toUpperCase();
+        let found = false;
+        for (const a of ASSUREURS_UPPER) {
+            if (a.upper === upper) {
+                assureurs.push(a.name); found = true; break;
+            } else if (upper.includes(a.upper) && a.name.length > 2) {
+                assureurs.push(a.name);
+                const rem = clean.replace(new RegExp(a.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'i'), '').trim().replace(/^-+/,'').trim();
+                if (rem.length > 2) parties.push(rem);
+                found = true; break;
+            }
+        }
+        if (!found) parties.push(clean);
+    }
+    const unique = [...new Set(assureurs)];
+    result.parties = parties.join(" + ");
+    result.assureur = unique.join(" + ");
+    return result;
+}
+
+function parseRisque(rawVal) {
+    const empty = {Rue:"",Numéro:"",CodePostal:"",Commune:"",Parties:"",Assureur:""};
+    let text = normalize(rawVal);
+    if (!text) return empty;
+    text = preprocess(text);
+    const result = {...empty};
+
+    // Trouver CP (4 chiffres)
+    const cpMatches = [...text.matchAll(/\b(\d{4})\b/g)];
+    if (!cpMatches.length) {
+        // Pas de CP → commune par nom ?
+        const comm = findCommuneByName(text);
+        if (comm) {
+            result.Commune = comm.name;
+            for (const [code, name] of Object.entries(CP_COMMUNE)) {
+                if (name.toLowerCase() === comm.name.toLowerCase()) { result.CodePostal = code; break; }
+            }
+            const before = text.substring(0, comm.start).trim();
+            const after = text.substring(comm.end).trim();
+            const nm = before.match(/\s+(\d[\w/\-]*)\s*$/);
+            if (nm) { result.Numéro = nm[1]; result.Rue = before.substring(0, nm.index).trim(); }
+            else result.Rue = before;
+            result.Rue = result.Rue.replace(/\s+à\s*$/, "").trim();
+            const rest = after.replace(/^[\s\-|:]+/, "").trim();
+            const pa = extractPartiesAssureurs(rest);
+            result.Parties = pa.parties; result.Assureur = pa.assureur;
+            return result;
+        }
+        // Pattern "Rue Num - Parties"
+        const m = text.match(/^(.+?)\s+(\d[\w/\-]*)\s*[-–]\s*(.+)$/);
+        if (m) {
+            result.Rue = m[1].trim(); result.Numéro = m[2];
+            const pa = extractPartiesAssureurs(m[3].trim());
+            result.Parties = pa.parties; result.Assureur = pa.assureur;
+            return result;
+        }
+        result.Parties = text;
+        return result;
+    }
+
+    // Préférer un CP bruxellois
+    let cpMatch = cpMatches[0];
+    for (const m of cpMatches) {
+        if (m[1].startsWith("1") && CP_COMMUNE[m[1]]) { cpMatch = m; break; }
+    }
+
+    const cp = cpMatch[1];
+    const cpPos = cpMatch.index;
+    result.CodePostal = cp;
+    result.Commune = CP_COMMUNE[cp] || "";
+
+    // Avant CP : rue + numéro
+    let beforeCp = text.substring(0, cpPos).trim().replace(/\s+à\s*$/, "").trim();
+    beforeCp = beforeCp.replace(/^AD\s+/i, "").trim();
+    const numMatch = beforeCp.match(/\s+(\d[\w/\-]*)\s*$/);
+    if (numMatch) {
+        result.Numéro = numMatch[1];
+        result.Rue = beforeCp.substring(0, numMatch.index).trim();
+    } else {
+        result.Rue = beforeCp;
+    }
+
+    // Après CP : commune (texte) + parties
+    let afterCp = text.substring(cpPos + 4).trim();
+    let rest;
+
+    if (result.Commune) {
+        const commLower = result.Commune.toLowerCase();
+        const commIdx = afterCp.toLowerCase().indexOf(commLower);
+        if (commIdx >= 0) {
+            rest = afterCp.substring(commIdx + result.Commune.length).trim();
+        } else {
+            const comm = findCommuneByName(afterCp);
+            if (comm) rest = afterCp.substring(comm.end).trim();
+            else {
+                const m = afterCp.match(/^([A-ZÀ-Ža-zà-ž\-\s'\.]+?)(?=\s*[-|:+]|\s*$)/);
+                rest = m ? afterCp.substring(m[0].length).trim() : afterCp;
+            }
+        }
+    } else {
+        const comm = findCommuneByName(afterCp);
+        if (comm) {
+            result.Commune = comm.name;
+            rest = afterCp.substring(comm.end).trim();
+        } else {
+            const m = afterCp.match(/^([A-ZÀ-Ža-zà-ž\-\s']+?)(?=\s*[-|:+]|\s*$)/);
+            if (m) { result.Commune = m[1].trim(); rest = afterCp.substring(m[0].length).trim(); }
+            else rest = afterCp;
+        }
+    }
+
+    rest = (rest || "").replace(/^[\s\-|:]+/, "").trim();
+    const pa = extractPartiesAssureurs(rest);
+    result.Parties = pa.parties;
+    result.Assureur = pa.assureur;
+    return result;
+}
+
+function extractSituation(comment) {
+    if (!comment) return "";
+    const c = comment.toLowerCase();
+    if (/clôtur|clotur|classé/.test(c)) return "Clôturé";
+    if (c.includes("attente") && c.includes("expert")) return "Attente retour expert";
+    if (c.includes("attente") && c.includes("riverain")) return "Attente retour riverain";
+    if (c.includes("attente") && c.includes("vivaqua")) return "Attente retour Vivaqua";
+    if (c.includes("attente") && /avocat|juridique/.test(c)) return "Attente avocat";
+    if (c.includes("attente") && c.includes("assur")) return "Attente assureur";
+    if (c.includes("attente") && c.includes("paiement")) return "Attente paiement";
+    if (c.includes("attente") && c.includes("dossier")) return "Attente dossier";
+    if (c.includes("attente")) return "En attente";
+    if (c.includes("franchise")) return "Gestion franchise";
+    if (c.includes("contestat")) return "Contestation";
+    if (c.includes("sans suite") || c.includes("pas de retour")) return "Sans suite";
+    if (/paiement|remboursement/.test(c)) return "Traitement paiement";
+    if (/expertise|rapport/.test(c)) return "En expertise";
+    return "En cours";
+}
+
+// ═══════════════════════════════════════════════════════
+// MAPPING COLONNES
+// ═══════════════════════════════════════════════════════
+
+const OUTPUT_HEADERS = [
+    "Réf. DAP","N° OT","DIR","Date sinistre",
+    "Rue","Numéro","Code postal","Commune",
+    "Parties adverses","Assureur adverse",
+    "Nature des dégâts","Circonstances",
+    "Responsabilité Vivaqua","Art. 544","Sous-traitant",
+    "Réclamation","Débours Vivaqua","Débours AXA",
+    "Statut","Situation Dossier","Commentaires",
+    "Formule déclaration","Gestionnaire",
+    "Réf. Assureur","Réf. Expert","Bureau d'expertise","Nom Expert","Avocat"
+];
+
+const DIRECT_MAP = {
+    "Réf. Dap":"Réf. DAP", "numéro OT":"N° OT", "DIR":"DIR",
+    "Date sinistre":"Date sinistre", "Nature des dégâts":"Nature des dégâts",
+    "Circonstances":"Circonstances",
+    "responsabilité vivaqua (O/N)":"Responsabilité Vivaqua",
+    "544 ? (O/N)":"Art. 544", "sous-traitant":"Sous-traitant",
+    "Réclamation":"Réclamation", "Débours Vivaqua":"Débours Vivaqua",
+    "Débours AXA":"Débours AXA", "Statut":"Statut",
+    "Commentaires":"Commentaires", "formule O/N":"Formule déclaration",
+    "Gestionnaire ":"Gestionnaire", "Gestionnaire":"Gestionnaire",
+    "Réf. Assureur":"Réf. Assureur", "Réf. Expert":"Réf. Expert",
+    "Bureau d'expertise":"Bureau d'expertise", "Expert":"Nom Expert",
+    "Avocat":"Avocat"
+};
+
+// ═══════════════════════════════════════════════════════
+// UI
+// ═══════════════════════════════════════════════════════
+
+let rawData = null;
+let sourceHeaders = [];
+let resultData = [];
+
+const dz = document.getElementById('dropzone');
+const fi = document.getElementById('fileInput');
+
+dz.addEventListener('click', () => fi.click());
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+fi.addEventListener('change', () => { if (fi.files[0]) handleFile(fi.files[0]); });
+
+function handleFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, {defval:""});
+        if (!json.length) { alert("Fichier vide."); return; }
+
+        sourceHeaders = Object.keys(json[0]);
+        rawData = json;
+
+        // Vérifier que "Risque/ partie adverse" existe
+        if (!sourceHeaders.includes("Risque/ partie adverse")) {
+            alert("Colonne 'Risque/ partie adverse' introuvable dans le fichier.\n\nColonnes détectées :\n" + sourceHeaders.join(", "));
+            return;
+        }
+
+        dz.classList.add('loaded');
+        dz.querySelector('.icon').textContent = '\u2705';
+        dz.querySelector('.label').textContent = file.name;
+        dz.querySelector('.sub').textContent = `${json.length} lignes \u00d7 ${sourceHeaders.length} colonnes`;
+
+        const info = document.getElementById('fileInfo');
+        info.textContent = `\u2705 ${json.length} lignes chargées depuis "${file.name}"`;
+        info.classList.add('show');
+
+        // Show columns
+        const existing = document.getElementById('existingCols');
+        existing.innerHTML = sourceHeaders
+            .filter(h => h !== "Risque/ partie adverse")
+            .map(h => `<li class="existing">${h}</li>`).join('');
+        document.getElementById('columnsCard').style.display = 'block';
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function processData() {
+    if (!rawData) return;
+
+    document.getElementById('btnProcess').disabled = true;
+    document.getElementById('progressSection').classList.add('show');
+
+    const total = rawData.length;
+    resultData = [];
+    let okCount = 0, partialCount = 0, emptyCount = 0;
+
+    // Process in chunks for UI responsiveness
+    let i = 0;
+    const CHUNK = 50;
+
+    function processChunk() {
+        const end = Math.min(i + CHUNK, total);
+        for (; i < end; i++) {
+            const row = rawData[i];
+            const out = {};
+
+            // Direct copy
+            for (const [src, dst] of Object.entries(DIRECT_MAP)) {
+                if (src in row) out[dst] = normalize(row[src]);
+            }
+
+            // Extract from "Risque/ partie adverse"
+            const parsed = parseRisque(row["Risque/ partie adverse"]);
+            out["Rue"] = parsed.Rue;
+            out["Numéro"] = parsed.Numéro;
+            out["Code postal"] = parsed.CodePostal;
+            out["Commune"] = parsed.Commune;
+            out["Parties adverses"] = parsed.Parties;
+            out["Assureur adverse"] = parsed.Assureur;
+
+            // Situation Dossier
+            out["Situation Dossier"] = extractSituation(out["Commentaires"] || "");
+
+            // Ensure all headers present
+            for (const h of OUTPUT_HEADERS) {
+                if (!(h in out)) out[h] = "";
+            }
+
+            resultData.push(out);
+
+            if (parsed.Rue) okCount++;
+            else if (normalize(row["Risque/ partie adverse"])) partialCount++;
+            else emptyCount++;
+        }
+
+        // Update progress
+        const pct = Math.round((i / total) * 100);
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressText').textContent = `${i} / ${total} lignes traitées`;
+
+        if (i < total) {
+            requestAnimationFrame(processChunk);
+        } else {
+            showResults(okCount, partialCount, emptyCount);
+        }
+    }
+
+    requestAnimationFrame(processChunk);
+}
+
+function showResults(ok, partial, empty) {
+    document.getElementById('progressSection').classList.remove('show');
+    document.getElementById('resultsSection').classList.add('show');
+    document.getElementById('statOk').textContent = ok;
+    document.getElementById('statPartial').textContent = partial;
+    document.getElementById('statEmpty').textContent = empty;
+
+    // Preview first 15 rows
+    const table = document.getElementById('previewTable');
+    const previewCols = ["Réf. DAP","Rue","Numéro","Code postal","Commune","Parties adverses","Assureur adverse","Statut","Situation Dossier"];
+    let html = '<thead><tr>';
+    previewCols.forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    resultData.slice(0, 15).forEach(row => {
+        html += '<tr>';
+        previewCols.forEach(h => html += `<td title="${esc(row[h] || '')}">${esc(row[h] || '')}</td>`);
+        html += '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+    document.getElementById('previewLabel').textContent =
+        `Apercu des 15 premieres lignes (${resultData.length} au total) — colonnes principales`;
+}
+
+function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+async function downloadResult() {
+    if (!resultData.length) return;
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = 'DAP - Vivaqua Restructurer';
+    const ws = wb.addWorksheet('Vivaqua Restructuré', {
+        views: [{ state: 'frozen', ySplit: 1 }]
+    });
+
+    // Column widths
+    const colWidths = {
+        "Réf. DAP":14,"N° OT":14,"DIR":8,"Date sinistre":14,
+        "Rue":30,"Numéro":10,"Code postal":12,"Commune":22,
+        "Parties adverses":28,"Assureur adverse":18,
+        "Nature des dégâts":20,"Circonstances":35,
+        "Responsabilité Vivaqua":14,"Art. 544":10,"Sous-traitant":16,
+        "Réclamation":14,"Débours Vivaqua":16,"Débours AXA":14,
+        "Statut":12,"Situation Dossier":24,"Commentaires":40,
+        "Formule déclaration":14,"Gestionnaire":22,
+        "Réf. Assureur":18,"Réf. Expert":22,"Bureau d'expertise":18,
+        "Nom Expert":18,"Avocat":22
+    };
+
+    // Define columns
+    ws.columns = OUTPUT_HEADERS.map(h => ({
+        header: h, key: h, width: colWidths[h] || 15
+    }));
+
+    // Style header row
+    const headerRow = ws.getRow(1);
+    headerRow.height = 35;
+    headerRow.eachCell(cell => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B3A5C' } };
+        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+            right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
+        };
+    });
+
+    // Add data rows
+    const statutIdx = OUTPUT_HEADERS.indexOf("Statut") + 1;
+    resultData.forEach((rowData, i) => {
+        const values = OUTPUT_HEADERS.map(h => rowData[h] || "");
+        const row = ws.addRow(values);
+
+        row.eachCell(cell => {
+            cell.font = { name: 'Calibri', size: 10 };
+            cell.alignment = { vertical: 'top', wrapText: true };
+            cell.border = {
+                top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+                bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+                left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+                right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
+            };
+            // Alternance couleurs
+            if (i % 2 === 0) {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FA' } };
+            }
+        });
+
+        // Couleur conditionnelle Statut
+        const statutCell = row.getCell(statutIdx);
+        const statutVal = (rowData["Statut"] || "").toLowerCase();
+        if (statutVal.includes("ouvert")) {
+            statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+        } else if (statutVal.includes("clôtur") || statutVal.includes("clotur")) {
+            statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+        }
+    });
+
+    // Auto-filter
+    ws.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: resultData.length + 1, column: OUTPUT_HEADERS.length }
+    };
+
+    // Generate and download
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(blob, 'vivaqua-restructure.xlsx');
+}
+
+// ═══════════════════════════════════════════════════════
+// SYNTHESE PDF
+// ═══════════════════════════════════════════════════════
+
+function downloadPDF() {
+    if (!resultData.length) return;
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const margin = 18;
+    let y = margin;
+
+    // Colors
+    const BLUE = [27, 58, 92];       // #1B3A5C
+    const LIGHT_BLUE = [37, 99, 235]; // #2563EB
+    const GRAY = [90, 101, 119];
+    const LIGHT_BG = [242, 246, 250]; // #F2F6FA
+    const GREEN = [5, 150, 105];
+    const AMBER = [217, 119, 6];
+    const RED = [220, 38, 38];
+
+    // ── Helper functions ──
+    function addHeader() {
+        // Logo DAP
+        try {
+            doc.addImage(LOGO_DAP_B64, 'PNG', margin, y, 50, 18);
+        } catch(e) {}
+        // Title right-aligned
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BLUE);
+        doc.text('Synthese Sinistres Vivaqua', W - margin, y + 8, { align: 'right' });
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRAY);
+        const now = new Date();
+        doc.text(`Genere le ${now.toLocaleDateString('fr-BE')}`, W - margin, y + 14, { align: 'right' });
+        y += 24;
+        // Line
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.8);
+        doc.line(margin, y, W - margin, y);
+        y += 8;
+    }
+
+    function sectionTitle(title) {
+        checkPage(18);
+        doc.setFillColor(...BLUE);
+        doc.roundedRect(margin, y, W - 2 * margin, 9, 2, 2, 'F');
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text(title, margin + 5, y + 6.5);
+        y += 13;
+    }
+
+    function kpiRow(items) {
+        checkPage(28);
+        const boxW = (W - 2 * margin - (items.length - 1) * 6) / items.length;
+        items.forEach((item, i) => {
+            const x = margin + i * (boxW + 6);
+            doc.setFillColor(...(item.color || LIGHT_BG));
+            doc.roundedRect(x, y, boxW, 22, 3, 3, 'F');
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...(item.numColor || BLUE));
+            doc.text(String(item.value), x + boxW / 2, y + 12, { align: 'center' });
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...GRAY);
+            doc.text(item.label, x + boxW / 2, y + 18, { align: 'center' });
+        });
+        y += 27;
+    }
+
+    function miniTable(headers, rows, colWidths) {
+        checkPage(12 + rows.length * 7);
+        doc.autoTable({
+            startY: y,
+            head: [headers],
+            body: rows,
+            margin: { left: margin, right: margin },
+            styles: { fontSize: 8, cellPadding: 2, font: 'helvetica' },
+            headStyles: { fillColor: BLUE, textColor: [255,255,255], fontStyle: 'bold', fontSize: 8 },
+            alternateRowStyles: { fillColor: LIGHT_BG },
+            columnStyles: colWidths || {},
+            theme: 'grid',
+        });
+        y = doc.lastAutoTable.finalY + 8;
+    }
+
+    function barChart(data, maxWidth) {
+        const maxVal = Math.max(...data.map(d => d.value));
+        if (maxVal === 0) return;
+        const barMaxW = maxWidth || (W - 2 * margin - 50);
+        data.forEach(item => {
+            checkPage(9);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...GRAY);
+            doc.text(item.label.substring(0, 25), margin, y + 4);
+            const barW = (item.value / maxVal) * barMaxW;
+            const barX = margin + 52;
+            doc.setFillColor(...(item.color || LIGHT_BLUE));
+            doc.roundedRect(barX, y, Math.max(barW, 1), 5, 1, 1, 'F');
+            doc.setFontSize(7);
+            doc.setTextColor(...BLUE);
+            doc.text(String(item.value), barX + barW + 3, y + 4);
+            y += 8;
+        });
+        y += 4;
+    }
+
+    function checkPage(needed) {
+        if (y + needed > H - 20) {
+            addFooter();
+            doc.addPage();
+            y = margin;
+        }
+    }
+
+    function addFooter() {
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRAY);
+        doc.text('DAP — Degauquier & Partners | Synthese generee automatiquement', W / 2, H - 8, { align: 'center' });
+        doc.text(`Page ${doc.getNumberOfPages()}`, W - margin, H - 8, { align: 'right' });
+    }
+
+    // ── Compute stats ──
+    const total = resultData.length;
+    const ouverts = resultData.filter(r => r["Statut"] && r["Statut"].toLowerCase().includes("ouvert")).length;
+    const clotures = resultData.filter(r => {
+        const s = (r["Statut"]||"").toLowerCase();
+        return s.includes("clôtur") || s.includes("clotur");
+    }).length;
+    const autres = total - ouverts - clotures;
+
+    // Dates
+    function parseDate(s) {
+        if (!s) return null;
+        const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        return m ? new Date(+m[3], +m[2]-1, +m[1]) : null;
+    }
+    const dates = resultData.map(r => parseDate(r["Date sinistre"])).filter(d => d);
+    dates.sort((a,b) => a-b);
+    const dateMin = dates.length ? dates[0] : null;
+    const dateMax = dates.length ? dates[dates.length-1] : null;
+
+    // By year
+    const byYear = {};
+    dates.forEach(d => { const y = d.getFullYear(); byYear[y] = (byYear[y]||0) + 1; });
+
+    // By month (12 derniers mois)
+    const byMonth = {};
+    const now = new Date();
+    dates.forEach(d => {
+        const diff = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (diff >= 0 && diff < 12) {
+            const key = `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+            byMonth[key] = (byMonth[key]||0) + 1;
+        }
+    });
+
+    // By commune
+    const byCommune = {};
+    resultData.forEach(r => {
+        const c = r["Commune"] || "Non renseigné";
+        if (c) byCommune[c] = (byCommune[c]||0) + 1;
+    });
+    const topCommunes = Object.entries(byCommune).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+    // Financier
+    function parseNum(s) {
+        if (!s) return 0;
+        const n = parseFloat(String(s).replace(/[^\d.,\-]/g, '').replace(',', '.'));
+        return isNaN(n) ? 0 : n;
+    }
+    const reclamations = resultData.map(r => parseNum(r["Réclamation"]));
+    const totalReclam = reclamations.reduce((a,b) => a+b, 0);
+    const deboursVivaqua = resultData.map(r => parseNum(r["Débours Vivaqua"])).reduce((a,b) => a+b, 0);
+    const deboursAxa = resultData.map(r => parseNum(r["Débours AXA"])).reduce((a,b) => a+b, 0);
+    const avgReclam = reclamations.filter(v => v > 0).length ?
+        totalReclam / reclamations.filter(v => v > 0).length : 0;
+
+    // Top 5 plus couteux
+    const topCostly = resultData
+        .map(r => ({ ref: r["Réf. DAP"], montant: parseNum(r["Réclamation"]), rue: r["Rue"], commune: r["Commune"] }))
+        .filter(r => r.montant > 0)
+        .sort((a,b) => b.montant - a.montant)
+        .slice(0, 5);
+
+    // Responsabilité
+    const respO = resultData.filter(r => (r["Responsabilité Vivaqua"]||"").trim() === "O").length;
+    const respN = resultData.filter(r => (r["Responsabilité Vivaqua"]||"").trim() === "N").length;
+    const respON = resultData.filter(r => (r["Responsabilité Vivaqua"]||"").includes("O/N")).length;
+    const art544 = resultData.filter(r => (r["Art. 544"]||"").trim() === "O").length;
+
+    // Situation dossier
+    const bySituation = {};
+    resultData.forEach(r => {
+        const s = r["Situation Dossier"] || "Non défini";
+        bySituation[s] = (bySituation[s]||0) + 1;
+    });
+    const topSituation = Object.entries(bySituation).sort((a,b) => b[1]-a[1]);
+
+    // Gestionnaires
+    const byGest = {};
+    resultData.forEach(r => {
+        const g = r["Gestionnaire"] || "Non attribué";
+        if (!byGest[g]) byGest[g] = { total: 0, ouverts: 0 };
+        byGest[g].total++;
+        if ((r["Statut"]||"").toLowerCase().includes("ouvert")) byGest[g].ouverts++;
+    });
+    const topGest = Object.entries(byGest).sort((a,b) => b[1].total - a[1].total).slice(0, 10);
+
+    // Assureurs adverses
+    const byAssureur = {};
+    resultData.forEach(r => {
+        const a = r["Assureur adverse"];
+        if (a) {
+            a.split("+").map(s=>s.trim()).filter(Boolean).forEach(s => {
+                byAssureur[s] = (byAssureur[s]||0) + 1;
+            });
+        }
+    });
+    const topAssureur = Object.entries(byAssureur).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+    // Nature des dégâts
+    const byNature = {};
+    resultData.forEach(r => {
+        let n = (r["Nature des dégâts"]||"").trim();
+        if (!n) n = "Non renseigné";
+        // Normaliser
+        const nl = n.toLowerCase();
+        if (nl.includes("brt") || nl.includes("branchement")) n = "BRT (Branchement)";
+        else if (nl.includes("dde") || nl.includes("dégât des eaux")) n = "DDE (Dégât des eaux)";
+        else if (nl.includes("fuite")) n = "Fuite";
+        else if (nl.includes("rc") || nl.includes("responsabilité")) n = "RC Générale";
+        else if (n.length > 25) n = n.substring(0, 25) + "...";
+        byNature[n] = (byNature[n]||0) + 1;
+    });
+    const topNature = Object.entries(byNature).sort((a,b) => b[1]-a[1]).slice(0, 8);
+
+    // Experts
+    const byExpert = {};
+    resultData.forEach(r => {
+        const b = r["Bureau d'expertise"];
+        if (b) byExpert[b] = (byExpert[b]||0) + 1;
+    });
+    const topExpert = Object.entries(byExpert).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+    // Sous-traitants
+    const bySousTrait = {};
+    resultData.forEach(r => {
+        const s = r["Sous-traitant"];
+        if (s) bySousTrait[s] = (bySousTrait[s]||0) + 1;
+    });
+    const topSousTrait = Object.entries(bySousTrait).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+    // Ancienneté dossiers ouverts
+    const openOld = resultData
+        .filter(r => (r["Statut"]||"").toLowerCase().includes("ouvert"))
+        .map(r => {
+            const d = parseDate(r["Date sinistre"]);
+            const days = d ? Math.floor((now - d) / 86400000) : 0;
+            return { ref: r["Réf. DAP"], date: r["Date sinistre"], days, commune: r["Commune"] };
+        })
+        .filter(r => r.days > 365)
+        .sort((a,b) => b.days - a.days)
+        .slice(0, 10);
+
+    // ══════════ BUILD PDF ══════════
+
+    addHeader();
+
+    // 1. VUE D'ENSEMBLE
+    sectionTitle("1. Vue d'ensemble");
+    kpiRow([
+        { value: total, label: 'Total sinistres', numColor: BLUE },
+        { value: ouverts, label: 'Ouverts', numColor: AMBER, color: [255,243,205] },
+        { value: clotures, label: 'Clotures', numColor: GREEN, color: [212,237,218] },
+        { value: `${Math.round(clotures/total*100)}%`, label: 'Taux cloture', numColor: GREEN },
+    ]);
+    doc.setFontSize(9);
+    doc.setTextColor(...GRAY);
+    doc.text(`Periode : ${dateMin ? dateMin.toLocaleDateString('fr-BE') : '?'} - ${dateMax ? dateMax.toLocaleDateString('fr-BE') : '?'}`, margin, y);
+    y += 8;
+
+    // 2. ÉVOLUTION TEMPORELLE
+    sectionTitle("2. Evolution temporelle");
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...BLUE);
+    doc.text('Sinistres par annee', margin, y + 4);
+    y += 8;
+    const yearData = Object.entries(byYear).sort((a,b) => a[0]-b[0]).map(([yr, count]) => ({
+        label: yr, value: count, color: LIGHT_BLUE
+    }));
+    barChart(yearData);
+
+    if (Object.keys(byMonth).length > 0) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BLUE);
+        doc.text('12 derniers mois', margin, y + 4);
+        y += 8;
+        const monthData = Object.entries(byMonth).sort().map(([m, c]) => ({ label: m, value: c, color: LIGHT_BLUE }));
+        barChart(monthData);
+    }
+
+    // 3. RÉPARTITION GÉOGRAPHIQUE
+    sectionTitle("3. Repartition geographique — Top 10 communes");
+    barChart(topCommunes.map(([c, n]) => ({ label: c, value: n, color: BLUE })));
+
+    // 4. ANALYSE FINANCIÈRE
+    sectionTitle("4. Analyse financiere");
+    kpiRow([
+        { value: `${Math.round(totalReclam).toLocaleString('fr-BE')}`, label: 'Total reclamations', numColor: RED },
+        { value: `${Math.round(deboursVivaqua).toLocaleString('fr-BE')}`, label: 'Debours Vivaqua', numColor: AMBER },
+        { value: `${Math.round(deboursAxa).toLocaleString('fr-BE')}`, label: 'Debours AXA', numColor: BLUE },
+        { value: `${Math.round(avgReclam).toLocaleString('fr-BE')}`, label: 'Moyenne / sinistre', numColor: GRAY },
+    ]);
+    if (topCostly.length) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+        doc.text('Top 5 sinistres les plus couteux', margin, y + 2); y += 6;
+        miniTable(
+            ['Ref. DAP', 'Rue', 'Commune', 'Montant'],
+            topCostly.map(r => [r.ref, (r.rue||'').substring(0,30), r.commune, `${r.montant.toLocaleString('fr-BE')} EUR`])
+        );
+    }
+
+    // 5. RESPONSABILITÉ
+    sectionTitle("5. Responsabilite Vivaqua");
+    kpiRow([
+        { value: respO, label: 'Responsable (O)', numColor: RED, color: [254,226,226] },
+        { value: respN, label: 'Non responsable (N)', numColor: GREEN, color: [212,237,218] },
+        { value: respON, label: 'A determiner (O/N)', numColor: AMBER, color: [255,243,205] },
+        { value: art544, label: 'Art. 544 applicable', numColor: BLUE },
+    ]);
+    const tauxResp = total > 0 ? Math.round(respO / total * 100) : 0;
+    doc.setFontSize(9); doc.setTextColor(...GRAY);
+    doc.text(`Taux de responsabilite confirmee : ${tauxResp}%`, margin, y); y += 8;
+
+    // 6. SITUATION DES DOSSIERS
+    sectionTitle("6. Situation des dossiers");
+    barChart(topSituation.slice(0, 8).map(([s, n]) => ({
+        label: s, value: n,
+        color: s.includes("Clôturé") ? GREEN : s.includes("attente") || s.includes("Attente") ? AMBER : LIGHT_BLUE
+    })));
+
+    if (openOld.length) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...RED);
+        doc.text(`Dossiers ouverts depuis plus d'1 an : ${openOld.length}`, margin, y + 2); y += 6;
+        miniTable(
+            ['Ref. DAP', 'Date sinistre', 'Commune', 'Anciennete'],
+            openOld.map(r => [r.ref, r.date, r.commune, `${r.days} jours`])
+        );
+    }
+
+    // 7. GESTIONNAIRES
+    sectionTitle("7. Gestionnaires — Top 10");
+    miniTable(
+        ['Gestionnaire', 'Total dossiers', 'Ouverts', 'Charge'],
+        topGest.map(([g, d]) => [
+            g.substring(0, 30),
+            d.total,
+            d.ouverts,
+            d.total > 0 ? `${Math.round(d.ouverts/d.total*100)}% ouverts` : '-'
+        ])
+    );
+
+    // 8. ASSUREURS ADVERSES
+    sectionTitle("8. Parties adverses & Assureurs");
+    if (topAssureur.length) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+        doc.text('Top 10 assureurs adverses', margin, y + 2); y += 6;
+        barChart(topAssureur.map(([a, n]) => ({ label: a, value: n, color: BLUE })));
+    }
+
+    // 9. NATURE DES DÉGÂTS
+    sectionTitle("9. Nature des degats");
+    barChart(topNature.map(([n, c]) => ({ label: n, value: c, color: LIGHT_BLUE })));
+
+    // 10. INTERVENANTS EXTERNES
+    sectionTitle("10. Intervenants externes");
+    if (topExpert.length) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+        doc.text('Bureaux d\'expertise', margin, y + 2); y += 6;
+        miniTable(
+            ['Bureau', 'Nb dossiers'],
+            topExpert.map(([b, n]) => [b, n])
+        );
+    }
+    if (topSousTrait.length) {
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(...BLUE);
+        doc.text('Sous-traitants', margin, y + 2); y += 6;
+        miniTable(
+            ['Sous-traitant', 'Nb dossiers'],
+            topSousTrait.map(([s, n]) => [s, n])
+        );
+    }
+
+    // Footer on all pages
+    const totalPages = doc.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...GRAY);
+        doc.text('DAP — Degauquier & Partners | Synthese generee automatiquement', W / 2, H - 8, { align: 'center' });
+        doc.text(`Page ${p}/${totalPages}`, W - margin, H - 8, { align: 'right' });
+    }
+
+    doc.save('vivaqua-synthese-sinistres.pdf');
+}
+
+// Logo DAP en base64 — chargé depuis fichier externe au build, inline ici
+const LOGO_DAP_B64 = 'LOGO_PLACEHOLDER';
+// Load logo dynamically
+(function loadLogo() {
+    const img = new Image();
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        window.LOGO_DAP_B64 = canvas.toDataURL('image/png');
+    };
+    img.crossOrigin = 'anonymous';
+    img.src = 'logo-dap.png';
+})();
+</script>
+</body>
+</html>
