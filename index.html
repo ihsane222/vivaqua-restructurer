@@ -908,9 +908,9 @@ function downloadPDF() {
     // ── Helper functions ──
     function addHeader() {
         // Logo DAP
-        try {
-            doc.addImage(LOGO_DAP_B64, 'PNG', margin, y, 50, 18);
-        } catch(e) {}
+        if (LOGO_DAP_LOADED) {
+            try { doc.addImage(LOGO_DAP_LOADED, 'PNG', margin, y, 50, 18); } catch(e) { console.warn('Logo error:', e); }
+        }
         // Title right-aligned
         doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
@@ -1301,17 +1301,19 @@ function downloadPDF() {
     doc.save('vivaqua-synthese-sinistres.pdf');
 }
 
-// Logo DAP en base64 — chargé depuis fichier externe au build, inline ici
-const LOGO_DAP_B64 = 'LOGO_PLACEHOLDER';
-// Load logo dynamically
+// Logo DAP — chargé dynamiquement et converti en base64 pour jsPDF
+let LOGO_DAP_LOADED = null;
 (function loadLogo() {
     const img = new Image();
     img.onload = function() {
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
         canvas.getContext('2d').drawImage(img, 0, 0);
-        window.LOGO_DAP_B64 = canvas.toDataURL('image/png');
+        LOGO_DAP_LOADED = canvas.toDataURL('image/png');
+    };
+    img.onerror = function() {
+        console.warn('Logo DAP non trouvé (logo-dap.png)');
     };
     img.crossOrigin = 'anonymous';
     img.src = 'logo-dap.png';
