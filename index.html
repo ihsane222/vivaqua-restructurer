@@ -1301,23 +1301,6 @@ function downloadPDF() {
     doc.save('vivaqua-synthese-sinistres.pdf');
 }
 
-// Logo DAP — chargé dynamiquement et converti en base64 pour jsPDF
-let LOGO_DAP_LOADED = null;
-(function loadLogo() {
-    const img = new Image();
-    img.onload = function() {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        LOGO_DAP_LOADED = canvas.toDataURL('image/png');
-    };
-    img.onerror = function() {
-        console.warn('Logo DAP non trouvé (logo-dap.png)');
-    };
-    img.crossOrigin = 'anonymous';
-    img.src = 'logo-dap.png';
-})();
 </script>
 </body>
 </html>
