@@ -899,13 +899,10 @@ async function downloadResult() {
     const debAxaIdx = OUTPUT_HEADERS.indexOf("Débours AXA") + 1;
 
     resultData.forEach(rowData => {
-        ws1.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
-    });
-    // Format date column
-    ws1.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
-    // Format money columns
-    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => {
-        ws1.getColumn(ci).numFmt = '#,##0.00';
+        const row = ws1.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+        // Appliquer numFmt sur chaque cellule date/montant
+        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
+        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
     });
     styleHeaders(ws1, OUTPUT_HEADERS);
     styleDataRows(ws1, resultData.length, statutIdx);
@@ -919,10 +916,10 @@ async function downloadResult() {
     });
     ws2.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
     ouverts.forEach(rowData => {
-        ws2.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+        const row = ws2.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
+        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
     });
-    ws2.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
-    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { ws2.getColumn(ci).numFmt = '#,##0.00'; });
     styleHeaders(ws2, OUTPUT_HEADERS);
     styleDataRows(ws2, ouverts.length, statutIdx);
     ws2.autoFilter = { from: {row:1,column:1}, to: {row:ouverts.length+1,column:OUTPUT_HEADERS.length} };
@@ -938,10 +935,10 @@ async function downloadResult() {
     });
     ws3.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
     clotures.forEach(rowData => {
-        ws3.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+        const row = ws3.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
+        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
     });
-    ws3.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
-    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { ws3.getColumn(ci).numFmt = '#,##0.00'; });
     styleHeaders(ws3, OUTPUT_HEADERS);
     styleDataRows(ws3, clotures.length, null);
     ws3.autoFilter = { from: {row:1,column:1}, to: {row:clotures.length+1,column:OUTPUT_HEADERS.length} };
