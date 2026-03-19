@@ -797,85 +797,273 @@ function esc(s) {
     return d.innerHTML;
 }
 
+// ── Helpers Excel ──
+const COL_WIDTHS = {
+    "Réf. DAP":14,"N° OT":14,"DIR":8,"Date sinistre":14,
+    "Rue":30,"Numéro":10,"Code postal":12,"Commune":22,
+    "Parties adverses":28,"Assureur adverse":18,
+    "Nature des dégâts":20,"Circonstances":35,
+    "Responsabilité Vivaqua":14,"Art. 544":10,"Sous-traitant":16,
+    "Réclamation":14,"Débours Vivaqua":16,"Débours AXA":14,
+    "Statut":12,"Situation Dossier":24,"Commentaires":40,
+    "Formule déclaration":14,"Gestionnaire":22,
+    "Réf. Assureur":18,"Réf. Expert":22,"Bureau d'expertise":18,
+    "Nom Expert":18,"Avocat":22
+};
+
+const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B3A5C' } };
+const HEADER_FONT = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+const HEADER_ALIGN = { horizontal: 'center', vertical: 'middle', wrapText: true };
+const CELL_FONT = { name: 'Calibri', size: 10 };
+const CELL_ALIGN = { vertical: 'top', wrapText: true };
+const THIN_BORDER = {
+    top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
+    right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
+};
+const ALT_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FA' } };
+
+function parseDate(s) {
+    if (!s) return null;
+    const m = String(s).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    return m ? new Date(+m[3], +m[2]-1, +m[1]) : null;
+}
+
+function parseNum(s) {
+    if (!s) return null;
+    const n = parseFloat(String(s).replace(/[^\d.,\-]/g, '').replace(',', '.'));
+    return isNaN(n) ? null : n;
+}
+
+function cellValue(h, val) {
+    // Convertir les dates en vrais objets Date pour le tri Excel
+    if (h === "Date sinistre") {
+        const d = parseDate(val);
+        return d || val || "";
+    }
+    // Convertir les montants en nombres
+    if (["Réclamation", "Débours Vivaqua", "Débours AXA"].includes(h)) {
+        const n = parseNum(val);
+        return n !== null ? n : val || "";
+    }
+    return val || "";
+}
+
+function styleHeaders(ws, headers) {
+    const row = ws.getRow(1);
+    row.height = 35;
+    row.eachCell(cell => {
+        cell.fill = HEADER_FILL;
+        cell.font = HEADER_FONT;
+        cell.alignment = HEADER_ALIGN;
+        cell.border = THIN_BORDER;
+    });
+}
+
+function styleDataRows(ws, rowCount, statutColIdx) {
+    for (let i = 2; i <= rowCount + 1; i++) {
+        const row = ws.getRow(i);
+        row.eachCell(cell => {
+            cell.font = CELL_FONT;
+            cell.alignment = CELL_ALIGN;
+            cell.border = THIN_BORDER;
+            if (i % 2 === 0) cell.fill = ALT_FILL;
+        });
+        if (statutColIdx) {
+            const statutCell = row.getCell(statutColIdx);
+            const v = (statutCell.value || "").toString().toLowerCase();
+            if (v.includes("ouvert"))
+                statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
+            else if (v.includes("clôtur") || v.includes("clotur"))
+                statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
+        }
+    }
+}
+
 async function downloadResult() {
     if (!resultData.length) return;
 
     const wb = new ExcelJS.Workbook();
     wb.creator = 'DAP - Vivaqua Restructurer';
-    const ws = wb.addWorksheet('Vivaqua Restructuré', {
+
+    // ═══ ONGLET 1 : Données complètes ═══
+    const ws1 = wb.addWorksheet('Tous les sinistres', {
         views: [{ state: 'frozen', ySplit: 1 }]
     });
-
-    // Column widths
-    const colWidths = {
-        "Réf. DAP":14,"N° OT":14,"DIR":8,"Date sinistre":14,
-        "Rue":30,"Numéro":10,"Code postal":12,"Commune":22,
-        "Parties adverses":28,"Assureur adverse":18,
-        "Nature des dégâts":20,"Circonstances":35,
-        "Responsabilité Vivaqua":14,"Art. 544":10,"Sous-traitant":16,
-        "Réclamation":14,"Débours Vivaqua":16,"Débours AXA":14,
-        "Statut":12,"Situation Dossier":24,"Commentaires":40,
-        "Formule déclaration":14,"Gestionnaire":22,
-        "Réf. Assureur":18,"Réf. Expert":22,"Bureau d'expertise":18,
-        "Nom Expert":18,"Avocat":22
-    };
-
-    // Define columns
-    ws.columns = OUTPUT_HEADERS.map(h => ({
-        header: h, key: h, width: colWidths[h] || 15
-    }));
-
-    // Style header row
-    const headerRow = ws.getRow(1);
-    headerRow.height = 35;
-    headerRow.eachCell(cell => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B3A5C' } };
-        cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-        cell.border = {
-            top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-            right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
-        };
-    });
-
-    // Add data rows
+    ws1.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
+    const dateColIdx = OUTPUT_HEADERS.indexOf("Date sinistre") + 1;
     const statutIdx = OUTPUT_HEADERS.indexOf("Statut") + 1;
-    resultData.forEach((rowData, i) => {
-        const values = OUTPUT_HEADERS.map(h => rowData[h] || "");
-        const row = ws.addRow(values);
+    const reclamIdx = OUTPUT_HEADERS.indexOf("Réclamation") + 1;
+    const debVivIdx = OUTPUT_HEADERS.indexOf("Débours Vivaqua") + 1;
+    const debAxaIdx = OUTPUT_HEADERS.indexOf("Débours AXA") + 1;
 
-        row.eachCell(cell => {
-            cell.font = { name: 'Calibri', size: 10 };
-            cell.alignment = { vertical: 'top', wrapText: true };
-            cell.border = {
-                top: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-                bottom: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-                left: { style: 'thin', color: { argb: 'FFD0D0D0' } },
-                right: { style: 'thin', color: { argb: 'FFD0D0D0' } }
-            };
-            // Alternance couleurs
-            if (i % 2 === 0) {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FA' } };
-            }
-        });
-
-        // Couleur conditionnelle Statut
-        const statutCell = row.getCell(statutIdx);
-        const statutVal = (rowData["Statut"] || "").toLowerCase();
-        if (statutVal.includes("ouvert")) {
-            statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } };
-        } else if (statutVal.includes("clôtur") || statutVal.includes("clotur")) {
-            statutCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD4EDDA' } };
-        }
+    resultData.forEach(rowData => {
+        ws1.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
     });
+    // Format date column
+    ws1.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
+    // Format money columns
+    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => {
+        ws1.getColumn(ci).numFmt = '#,##0.00';
+    });
+    styleHeaders(ws1, OUTPUT_HEADERS);
+    styleDataRows(ws1, resultData.length, statutIdx);
+    ws1.autoFilter = { from: {row:1,column:1}, to: {row:resultData.length+1,column:OUTPUT_HEADERS.length} };
 
-    // Auto-filter
-    ws.autoFilter = {
-        from: { row: 1, column: 1 },
-        to: { row: resultData.length + 1, column: OUTPUT_HEADERS.length }
-    };
+    // ═══ ONGLET 2 : Dossiers ouverts ═══
+    const ouverts = resultData.filter(r => (r["Statut"]||"").toLowerCase().includes("ouvert"));
+    const ws2 = wb.addWorksheet('Dossiers ouverts', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+        properties: { tabColor: { argb: 'FFF59E0B' } }
+    });
+    ws2.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
+    ouverts.forEach(rowData => {
+        ws2.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+    });
+    ws2.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
+    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { ws2.getColumn(ci).numFmt = '#,##0.00'; });
+    styleHeaders(ws2, OUTPUT_HEADERS);
+    styleDataRows(ws2, ouverts.length, statutIdx);
+    ws2.autoFilter = { from: {row:1,column:1}, to: {row:ouverts.length+1,column:OUTPUT_HEADERS.length} };
+
+    // ═══ ONGLET 3 : Dossiers clôturés ═══
+    const clotures = resultData.filter(r => {
+        const s = (r["Statut"]||"").toLowerCase();
+        return s.includes("clôtur") || s.includes("clotur");
+    });
+    const ws3 = wb.addWorksheet('Dossiers clôturés', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+        properties: { tabColor: { argb: 'FF059669' } }
+    });
+    ws3.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
+    clotures.forEach(rowData => {
+        ws3.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
+    });
+    ws3.getColumn(dateColIdx).numFmt = 'DD/MM/YYYY';
+    [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { ws3.getColumn(ci).numFmt = '#,##0.00'; });
+    styleHeaders(ws3, OUTPUT_HEADERS);
+    styleDataRows(ws3, clotures.length, null);
+    ws3.autoFilter = { from: {row:1,column:1}, to: {row:clotures.length+1,column:OUTPUT_HEADERS.length} };
+
+    // ═══ ONGLET 4 : Synthèse par commune ═══
+    const byCommune = {};
+    resultData.forEach(r => {
+        const c = r["Commune"] || "Non renseigné";
+        if (!byCommune[c]) byCommune[c] = { total: 0, ouverts: 0, reclam: 0 };
+        byCommune[c].total++;
+        if ((r["Statut"]||"").toLowerCase().includes("ouvert")) byCommune[c].ouverts++;
+        const n = parseNum(r["Réclamation"]);
+        if (n) byCommune[c].reclam += n;
+    });
+    const communeRows = Object.entries(byCommune)
+        .sort((a,b) => b[1].total - a[1].total);
+
+    const ws4 = wb.addWorksheet('Par commune', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+        properties: { tabColor: { argb: 'FF2563EB' } }
+    });
+    const commHeaders = ['Commune', 'Total sinistres', 'Ouverts', 'Clôturés', 'Taux clôture', 'Total réclamations'];
+    ws4.columns = [
+        { header: 'Commune', key: 'commune', width: 28 },
+        { header: 'Total sinistres', key: 'total', width: 16 },
+        { header: 'Ouverts', key: 'ouverts', width: 12 },
+        { header: 'Clôturés', key: 'clotures', width: 12 },
+        { header: 'Taux clôture', key: 'taux', width: 14 },
+        { header: 'Total réclamations', key: 'reclam', width: 20 },
+    ];
+    communeRows.forEach(([c, d]) => {
+        ws4.addRow({
+            commune: c, total: d.total, ouverts: d.ouverts,
+            clotures: d.total - d.ouverts,
+            taux: d.total > 0 ? (d.total - d.ouverts) / d.total : 0,
+            reclam: d.reclam
+        });
+    });
+    ws4.getColumn(5).numFmt = '0%';
+    ws4.getColumn(6).numFmt = '#,##0.00';
+    styleHeaders(ws4, commHeaders);
+    styleDataRows(ws4, communeRows.length, null);
+    ws4.autoFilter = { from: {row:1,column:1}, to: {row:communeRows.length+1,column:6} };
+
+    // ═══ ONGLET 5 : Synthèse par gestionnaire ═══
+    const byGest = {};
+    resultData.forEach(r => {
+        const g = r["Gestionnaire"] || "Non attribué";
+        if (!byGest[g]) byGest[g] = { total: 0, ouverts: 0, reclam: 0 };
+        byGest[g].total++;
+        if ((r["Statut"]||"").toLowerCase().includes("ouvert")) byGest[g].ouverts++;
+        const n = parseNum(r["Réclamation"]);
+        if (n) byGest[g].reclam += n;
+    });
+    const gestRows = Object.entries(byGest).sort((a,b) => b[1].total - a[1].total);
+
+    const ws5 = wb.addWorksheet('Par gestionnaire', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+        properties: { tabColor: { argb: 'FF7C3AED' } }
+    });
+    ws5.columns = [
+        { header: 'Gestionnaire', key: 'gest', width: 28 },
+        { header: 'Total dossiers', key: 'total', width: 16 },
+        { header: 'Ouverts', key: 'ouverts', width: 12 },
+        { header: 'Clôturés', key: 'clotures', width: 12 },
+        { header: 'Charge ouverte', key: 'charge', width: 14 },
+        { header: 'Total réclamations', key: 'reclam', width: 20 },
+    ];
+    gestRows.forEach(([g, d]) => {
+        ws5.addRow({
+            gest: g, total: d.total, ouverts: d.ouverts,
+            clotures: d.total - d.ouverts,
+            charge: d.total > 0 ? d.ouverts / d.total : 0,
+            reclam: d.reclam
+        });
+    });
+    ws5.getColumn(5).numFmt = '0%';
+    ws5.getColumn(6).numFmt = '#,##0.00';
+    styleHeaders(ws5, []);
+    styleDataRows(ws5, gestRows.length, null);
+    ws5.autoFilter = { from: {row:1,column:1}, to: {row:gestRows.length+1,column:6} };
+
+    // ═══ ONGLET 6 : Évolution annuelle ═══
+    const byYear = {};
+    resultData.forEach(r => {
+        const d = parseDate(r["Date sinistre"]);
+        if (!d) return;
+        const yr = d.getFullYear();
+        if (!byYear[yr]) byYear[yr] = { total: 0, ouverts: 0, reclam: 0, respO: 0 };
+        byYear[yr].total++;
+        if ((r["Statut"]||"").toLowerCase().includes("ouvert")) byYear[yr].ouverts++;
+        const n = parseNum(r["Réclamation"]);
+        if (n) byYear[yr].reclam += n;
+        if ((r["Responsabilité Vivaqua"]||"").trim() === "O") byYear[yr].respO++;
+    });
+    const yearRows = Object.entries(byYear).sort((a,b) => +a[0] - +b[0]);
+
+    const ws6 = wb.addWorksheet('Par année', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+        properties: { tabColor: { argb: 'FFEC4899' } }
+    });
+    ws6.columns = [
+        { header: 'Année', key: 'year', width: 10 },
+        { header: 'Nb sinistres', key: 'total', width: 14 },
+        { header: 'Ouverts', key: 'ouverts', width: 12 },
+        { header: 'Clôturés', key: 'clotures', width: 12 },
+        { header: 'Resp. Vivaqua', key: 'resp', width: 16 },
+        { header: 'Total réclamations', key: 'reclam', width: 20 },
+        { header: 'Moyenne / sinistre', key: 'avg', width: 20 },
+    ];
+    yearRows.forEach(([yr, d]) => {
+        ws6.addRow({
+            year: +yr, total: d.total, ouverts: d.ouverts,
+            clotures: d.total - d.ouverts, resp: d.respO,
+            reclam: d.reclam,
+            avg: d.total > 0 ? d.reclam / d.total : 0
+        });
+    });
+    ws6.getColumn(6).numFmt = '#,##0.00';
+    ws6.getColumn(7).numFmt = '#,##0.00';
+    styleHeaders(ws6, []);
+    styleDataRows(ws6, yearRows.length, null);
 
     // Generate and download
     const buffer = await wb.xlsx.writeBuffer();
