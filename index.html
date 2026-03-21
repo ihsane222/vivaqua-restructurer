@@ -282,6 +282,136 @@
             color: var(--text2);
             font-size: 13px;
         }
+
+        /* ── Column Editor ── */
+        .col-editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .col-editor-header .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-sm {
+            padding: 7px 14px;
+            font-size: 13px;
+            font-weight: 500;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-sm.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .btn-sm.danger { color: var(--danger); border-color: var(--danger); }
+        .btn-sm.danger:hover { background: var(--danger-bg); }
+
+        .col-list-editor {
+            list-style: none;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .col-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #e9edf2;
+            background: var(--surface);
+            transition: background 0.15s;
+            cursor: grab;
+        }
+        .col-item:last-child { border-bottom: none; }
+        .col-item:hover { background: #f8fafc; }
+        .col-item.dragging { opacity: 0.4; background: #eff6ff; }
+        .col-item.drag-over { border-top: 2px solid var(--accent); }
+        .col-item .grip {
+            color: #c0c7d0;
+            font-size: 16px;
+            cursor: grab;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .col-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .col-item .col-name {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .col-item .col-name input {
+            border: 1px solid transparent;
+            background: transparent;
+            font-size: 14px;
+            font-weight: 500;
+            font-family: inherit;
+            color: var(--text);
+            padding: 2px 6px;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .col-item .col-name input:focus {
+            border-color: var(--accent);
+            background: white;
+            outline: none;
+        }
+        .col-item .col-badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .badge-source { background: #f1f5f9; color: #64748b; }
+        .badge-extracted { background: #eff6ff; color: var(--accent); }
+        .badge-derived { background: var(--warning-bg); color: var(--warning); }
+        .badge-custom { background: #f3e8ff; color: #7c3aed; }
+        .col-item .col-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .col-item .col-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 2px 4px;
+            border-radius: 4px;
+            color: #94a3b8;
+            transition: all 0.15s;
+        }
+        .col-item .col-actions button:hover { background: #f1f5f9; color: var(--text); }
+        .col-item .col-actions button.del:hover { color: var(--danger); background: var(--danger-bg); }
+
+        .col-count {
+            font-size: 13px;
+            color: var(--text2);
+            margin-top: 10px;
+        }
+
+        .preset-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .preset-bar .btn-sm.preset-active {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
     </style>
 </head>
 <body>
@@ -303,30 +433,30 @@
             <div class="file-info" id="fileInfo"></div>
         </div>
 
-        <!-- Step 2: Columns info -->
+        <!-- Step 2: Column Editor -->
         <div class="card" id="columnsCard" style="display:none;">
-            <h2><span class="step-num">2</span> Colonnes détectées</h2>
-            <p style="font-size:14px; color:var(--text2); margin-bottom:12px;">
-                La colonne <strong>"Risque/ partie adverse"</strong> sera découpée automatiquement :
+            <h2><span class="step-num">2</span> Configurer les colonnes de sortie</h2>
+            <p style="font-size:14px; color:var(--text2); margin-bottom:16px;">
+                Cochez les colonnes a inclure, decochez pour les retirer. Glissez pour reordonner. Renommez en cliquant sur le nom.
             </p>
-            <div class="columns-grid">
-                <div class="col-section">
-                    <h3>Colonnes conservées</h3>
-                    <ul class="col-list" id="existingCols"></ul>
-                </div>
-                <div class="col-section">
-                    <h3>Colonnes extraites</h3>
-                    <ul class="col-list">
-                        <li class="extracted">Rue</li>
-                        <li class="extracted">Numéro</li>
-                        <li class="extracted">Code postal</li>
-                        <li class="extracted">Commune</li>
-                        <li class="extracted">Parties adverses</li>
-                        <li class="extracted">Assureur adverse</li>
-                        <li class="derived">Situation Dossier (depuis Commentaires)</li>
-                    </ul>
+
+            <div class="preset-bar">
+                <button class="btn-sm active" id="presetFull" onclick="applyPreset('full')">Vivaqua Complet (28 col.)</button>
+                <button class="btn-sm" id="presetMinimal" onclick="applyPreset('minimal')">Essentiel (15 col.)</button>
+                <button class="btn-sm" id="presetCustom" onclick="applyPreset('custom')">Personnalise</button>
+            </div>
+
+            <div class="col-editor-header">
+                <div class="col-count" id="colCount">0 colonnes selectionnees</div>
+                <div class="actions">
+                    <button class="btn-sm" onclick="selectAllCols()">Tout cocher</button>
+                    <button class="btn-sm" onclick="deselectAllCols()">Tout decocher</button>
+                    <button class="btn-sm" onclick="addCustomColumn()">+ Colonne</button>
                 </div>
             </div>
+
+            <ul class="col-list-editor" id="colListEditor"></ul>
+
             <div style="margin-top:20px;">
                 <button class="btn-process" id="btnProcess" onclick="processData()">
                     Lancer la restructuration
@@ -690,18 +820,173 @@ function handleFile(file) {
         dz.querySelector('.sub').textContent = `${json.length} lignes \u00d7 ${sourceHeaders.length} colonnes`;
 
         const info = document.getElementById('fileInfo');
-        info.textContent = `\u2705 ${json.length} lignes chargées depuis "${file.name}"`;
+        info.textContent = `\u2705 ${json.length} lignes chargees depuis "${file.name}"`;
         info.classList.add('show');
 
-        // Show columns
-        const existing = document.getElementById('existingCols');
-        existing.innerHTML = sourceHeaders
-            .filter(h => h !== "Risque/ partie adverse")
-            .map(h => `<li class="existing">${h}</li>`).join('');
+        // Init column editor
+        initColumnEditor();
         document.getElementById('columnsCard').style.display = 'block';
     };
     reader.readAsArrayBuffer(file);
 }
+
+// ══════════════════════════════════════
+//  COLUMN EDITOR
+// ══════════════════════════════════════
+
+// Each column definition: { id, name, type, enabled, source }
+// type: 'source' (direct copy), 'extracted' (regex from Risque), 'derived' (computed), 'custom' (user-added)
+let columnDefs = [];
+let colIdCounter = 0;
+
+// Extracted column names (from regex parser)
+const EXTRACTED_COLS = ["Rue","Numero","Code postal","Commune","Parties adverses","Assureur adverse"];
+// Derived columns
+const DERIVED_COLS = ["Situation Dossier"];
+
+function initColumnEditor() {
+    columnDefs = [];
+    colIdCounter = 0;
+
+    // Build full column list in the default "Vivaqua Complet" order = OUTPUT_HEADERS
+    OUTPUT_HEADERS.forEach(h => {
+        let type = 'source';
+        let source = null;
+        if (EXTRACTED_COLS.includes(h)) { type = 'extracted'; source = 'Risque/ partie adverse'; }
+        else if (DERIVED_COLS.includes(h)) { type = 'derived'; source = 'Commentaires'; }
+        else {
+            // Find the source header via DIRECT_MAP
+            const srcKey = Object.keys(DIRECT_MAP).find(k => DIRECT_MAP[k] === h);
+            if (srcKey) source = srcKey;
+        }
+        columnDefs.push({ id: colIdCounter++, name: h, type, enabled: true, source });
+    });
+
+    renderColumnEditor();
+    updateColCount();
+}
+
+function renderColumnEditor() {
+    const list = document.getElementById('colListEditor');
+    list.innerHTML = '';
+    columnDefs.forEach((col, idx) => {
+        const li = document.createElement('li');
+        li.className = 'col-item';
+        li.setAttribute('data-idx', idx);
+        li.draggable = true;
+
+        const badgeClass = col.type === 'source' ? 'badge-source' :
+                           col.type === 'extracted' ? 'badge-extracted' :
+                           col.type === 'derived' ? 'badge-derived' : 'badge-custom';
+        const badgeText = col.type === 'source' ? 'Source' :
+                          col.type === 'extracted' ? 'Extrait' :
+                          col.type === 'derived' ? 'Calcule' : 'Custom';
+
+        li.innerHTML = `
+            <span class="grip">&#9776;</span>
+            <input type="checkbox" ${col.enabled ? 'checked' : ''} onchange="toggleCol(${col.id}, this.checked)">
+            <span class="col-name"><input type="text" value="${esc(col.name)}" onchange="renameCol(${col.id}, this.value)"></span>
+            <span class="col-badge ${badgeClass}">${badgeText}</span>
+            <span class="col-actions">
+                <button title="Monter" onclick="moveCol(${idx}, -1)">&#9650;</button>
+                <button title="Descendre" onclick="moveCol(${idx}, 1)">&#9660;</button>
+                ${col.type === 'custom' ? `<button class="del" title="Supprimer" onclick="removeCol(${col.id})">&#10005;</button>` : ''}
+            </span>
+        `;
+
+        // Drag events
+        li.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', idx); li.classList.add('dragging'); });
+        li.addEventListener('dragend', () => { li.classList.remove('dragging'); document.querySelectorAll('.col-item.drag-over').forEach(el => el.classList.remove('drag-over')); });
+        li.addEventListener('dragover', e => { e.preventDefault(); li.classList.add('drag-over'); });
+        li.addEventListener('dragleave', () => li.classList.remove('drag-over'));
+        li.addEventListener('drop', e => {
+            e.preventDefault();
+            li.classList.remove('drag-over');
+            const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+            const toIdx = idx;
+            if (fromIdx !== toIdx) {
+                const [moved] = columnDefs.splice(fromIdx, 1);
+                columnDefs.splice(toIdx, 0, moved);
+                renderColumnEditor();
+            }
+        });
+
+        list.appendChild(li);
+    });
+}
+
+function toggleCol(id, checked) {
+    const col = columnDefs.find(c => c.id === id);
+    if (col) col.enabled = checked;
+    updateColCount();
+}
+
+function renameCol(id, newName) {
+    const col = columnDefs.find(c => c.id === id);
+    if (col) col.name = newName.trim();
+}
+
+function moveCol(idx, dir) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= columnDefs.length) return;
+    [columnDefs[idx], columnDefs[newIdx]] = [columnDefs[newIdx], columnDefs[idx]];
+    renderColumnEditor();
+}
+
+function removeCol(id) {
+    columnDefs = columnDefs.filter(c => c.id !== id);
+    renderColumnEditor();
+    updateColCount();
+}
+
+function addCustomColumn() {
+    const name = prompt("Nom de la nouvelle colonne :");
+    if (!name || !name.trim()) return;
+    columnDefs.push({ id: colIdCounter++, name: name.trim(), type: 'custom', enabled: true, source: null });
+    renderColumnEditor();
+    updateColCount();
+}
+
+function selectAllCols() {
+    columnDefs.forEach(c => c.enabled = true);
+    renderColumnEditor();
+    updateColCount();
+}
+
+function deselectAllCols() {
+    columnDefs.forEach(c => c.enabled = false);
+    renderColumnEditor();
+    updateColCount();
+}
+
+function applyPreset(preset) {
+    document.querySelectorAll('.preset-bar .btn-sm').forEach(b => b.classList.remove('active'));
+    document.getElementById('preset' + preset.charAt(0).toUpperCase() + preset.slice(1)).classList.add('active');
+
+    if (preset === 'full') {
+        columnDefs.forEach(c => c.enabled = true);
+    } else if (preset === 'minimal') {
+        // Only essential columns
+        const essential = ["Ref. DAP","Ref DAP","Réf. DAP","Date sinistre","Rue","Numero","Numéro","Code postal","Commune",
+                           "Parties adverses","Assureur adverse","Statut","Responsabilite Vivaqua","Responsabilité Vivaqua",
+                           "Reclamation","Réclamation","Situation Dossier"];
+        columnDefs.forEach(c => {
+            c.enabled = essential.some(e => c.name === e || c.name.toLowerCase() === e.toLowerCase());
+        });
+    }
+    // 'custom' = don't change anything, let user decide
+    renderColumnEditor();
+    updateColCount();
+}
+
+function updateColCount() {
+    const enabled = columnDefs.filter(c => c.enabled).length;
+    document.getElementById('colCount').textContent = `${enabled} colonnes selectionnees sur ${columnDefs.length}`;
+}
+
+// ══════════════════════════════════════
+//  PROCESSING (uses column editor config)
+// ══════════════════════════════════════
 
 function processData() {
     if (!rawData) return;
@@ -709,11 +994,13 @@ function processData() {
     document.getElementById('btnProcess').disabled = true;
     document.getElementById('progressSection').classList.add('show');
 
+    const enabledCols = columnDefs.filter(c => c.enabled);
+    if (!enabledCols.length) { alert("Selectionnez au moins une colonne."); return; }
+
     const total = rawData.length;
     resultData = [];
     let okCount = 0, partialCount = 0, emptyCount = 0;
 
-    // Process in chunks for UI responsiveness
     let i = 0;
     const CHUNK = 50;
 
@@ -721,29 +1008,31 @@ function processData() {
         const end = Math.min(i + CHUNK, total);
         for (; i < end; i++) {
             const row = rawData[i];
-            const out = {};
+            const fullRow = {};
 
-            // Direct copy
+            // Direct copy from source
             for (const [src, dst] of Object.entries(DIRECT_MAP)) {
-                if (src in row) out[dst] = normalize(row[src]);
+                if (src in row) fullRow[dst] = normalize(row[src]);
             }
 
             // Extract from "Risque/ partie adverse"
             const parsed = parseRisque(row["Risque/ partie adverse"]);
-            out["Rue"] = parsed.Rue;
-            out["Numéro"] = parsed.Numéro;
-            out["Code postal"] = parsed.CodePostal;
-            out["Commune"] = parsed.Commune;
-            out["Parties adverses"] = parsed.Parties;
-            out["Assureur adverse"] = parsed.Assureur;
+            fullRow["Rue"] = parsed.Rue;
+            fullRow["Numero"] = parsed.Numéro || parsed.Numero || "";
+            fullRow["Numéro"] = parsed.Numéro || parsed.Numero || "";
+            fullRow["Code postal"] = parsed.CodePostal;
+            fullRow["Commune"] = parsed.Commune;
+            fullRow["Parties adverses"] = parsed.Parties;
+            fullRow["Assureur adverse"] = parsed.Assureur;
 
             // Situation Dossier
-            out["Situation Dossier"] = extractSituation(out["Commentaires"] || "");
+            fullRow["Situation Dossier"] = extractSituation(fullRow["Commentaires"] || "");
 
-            // Ensure all headers present
-            for (const h of OUTPUT_HEADERS) {
-                if (!(h in out)) out[h] = "";
-            }
+            // Build output row with only enabled columns in order
+            const out = {};
+            enabledCols.forEach(col => {
+                out[col.name] = fullRow[col.name] || "";
+            });
 
             resultData.push(out);
 
@@ -752,20 +1041,23 @@ function processData() {
             else emptyCount++;
         }
 
-        // Update progress
         const pct = Math.round((i / total) * 100);
         document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressText').textContent = `${i} / ${total} lignes traitées`;
+        document.getElementById('progressText').textContent = `${i} / ${total} lignes traitees`;
 
         if (i < total) {
             requestAnimationFrame(processChunk);
         } else {
+            // Update OUTPUT_HEADERS to match user's selection
+            activeHeaders = enabledCols.map(c => c.name);
             showResults(okCount, partialCount, emptyCount);
         }
     }
 
     requestAnimationFrame(processChunk);
 }
+
+let activeHeaders = []; // set after processing
 
 function showResults(ok, partial, empty) {
     document.getElementById('progressSection').classList.remove('show');
@@ -774,9 +1066,9 @@ function showResults(ok, partial, empty) {
     document.getElementById('statPartial').textContent = partial;
     document.getElementById('statEmpty').textContent = empty;
 
-    // Preview first 15 rows
+    // Preview first 15 rows using first 9 columns of active selection
     const table = document.getElementById('previewTable');
-    const previewCols = ["Réf. DAP","Rue","Numéro","Code postal","Commune","Parties adverses","Assureur adverse","Statut","Situation Dossier"];
+    const previewCols = activeHeaders.slice(0, 9);
     let html = '<thead><tr>';
     previewCols.forEach(h => html += `<th>${h}</th>`);
     html += '</tr></thead><tbody>';
@@ -788,7 +1080,7 @@ function showResults(ok, partial, empty) {
     html += '</tbody>';
     table.innerHTML = html;
     document.getElementById('previewLabel').textContent =
-        `Apercu des 15 premieres lignes (${resultData.length} au total) — colonnes principales`;
+        `Apercu des 15 premieres lignes (${resultData.length} au total) — ${activeHeaders.length} colonnes`;
 }
 
 function esc(s) {
@@ -884,29 +1176,37 @@ function styleDataRows(ws, rowCount, statutColIdx) {
 async function downloadResult() {
     if (!resultData.length) return;
 
+    // Use activeHeaders if set by column editor, else fall back to OUTPUT_HEADERS
+    const HDRS = (activeHeaders && activeHeaders.length) ? activeHeaders : OUTPUT_HEADERS;
+
     const wb = new ExcelJS.Workbook();
     wb.creator = 'DAP - Vivaqua Restructurer';
 
-    // ═══ ONGLET 1 : Données complètes ═══
-    const ws1 = wb.addWorksheet('Tous les sinistres', {
-        views: [{ state: 'frozen', ySplit: 1 }]
-    });
-    ws1.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
-    const dateColIdx = OUTPUT_HEADERS.indexOf("Date sinistre") + 1;
-    const statutIdx = OUTPUT_HEADERS.indexOf("Statut") + 1;
-    const reclamIdx = OUTPUT_HEADERS.indexOf("Réclamation") + 1;
-    const debVivIdx = OUTPUT_HEADERS.indexOf("Débours Vivaqua") + 1;
-    const debAxaIdx = OUTPUT_HEADERS.indexOf("Débours AXA") + 1;
+    // Helper: find column index (1-based), returns 0 if not found
+    function colIdx(name) { return HDRS.indexOf(name) + 1; }
 
-    resultData.forEach(rowData => {
-        const row = ws1.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
-        // Appliquer numFmt sur chaque cellule date/montant
-        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
-        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
-    });
-    styleHeaders(ws1, OUTPUT_HEADERS);
-    styleDataRows(ws1, resultData.length, statutIdx);
-    ws1.autoFilter = { from: {row:1,column:1}, to: {row:resultData.length+1,column:OUTPUT_HEADERS.length} };
+    const dateColIdx = colIdx("Date sinistre");
+    const statutIdx = colIdx("Statut");
+    const reclamIdx = colIdx("Réclamation") || colIdx("Reclamation");
+    const debVivIdx = colIdx("Débours Vivaqua") || colIdx("Debours Vivaqua");
+    const debAxaIdx = colIdx("Débours AXA") || colIdx("Debours AXA");
+    const fmtCols = [reclamIdx, debVivIdx, debAxaIdx].filter(c => c > 0);
+
+    function addDataSheet(ws, data) {
+        ws.columns = HDRS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
+        data.forEach(rowData => {
+            const row = ws.addRow(HDRS.map(h => cellValue(h, rowData[h])));
+            if (dateColIdx) row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
+            fmtCols.forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
+        });
+        styleHeaders(ws, HDRS);
+        styleDataRows(ws, data.length, statutIdx || null);
+        ws.autoFilter = { from: {row:1,column:1}, to: {row:data.length+1,column:HDRS.length} };
+    }
+
+    // ═══ ONGLET 1 : Données complètes ═══
+    const ws1 = wb.addWorksheet('Tous les sinistres', { views: [{ state: 'frozen', ySplit: 1 }] });
+    addDataSheet(ws1, resultData);
 
     // ═══ ONGLET 2 : Dossiers ouverts ═══
     const ouverts = resultData.filter(r => (r["Statut"]||"").toLowerCase().includes("ouvert"));
@@ -914,34 +1214,18 @@ async function downloadResult() {
         views: [{ state: 'frozen', ySplit: 1 }],
         properties: { tabColor: { argb: 'FFF59E0B' } }
     });
-    ws2.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
-    ouverts.forEach(rowData => {
-        const row = ws2.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
-        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
-        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
-    });
-    styleHeaders(ws2, OUTPUT_HEADERS);
-    styleDataRows(ws2, ouverts.length, statutIdx);
-    ws2.autoFilter = { from: {row:1,column:1}, to: {row:ouverts.length+1,column:OUTPUT_HEADERS.length} };
+    addDataSheet(ws2, ouverts);
 
     // ═══ ONGLET 3 : Dossiers clôturés ═══
     const clotures = resultData.filter(r => {
         const s = (r["Statut"]||"").toLowerCase();
         return s.includes("clôtur") || s.includes("clotur");
     });
-    const ws3 = wb.addWorksheet('Dossiers clôturés', {
+    const ws3 = wb.addWorksheet('Dossiers clotures', {
         views: [{ state: 'frozen', ySplit: 1 }],
         properties: { tabColor: { argb: 'FF059669' } }
     });
-    ws3.columns = OUTPUT_HEADERS.map(h => ({ header: h, key: h, width: COL_WIDTHS[h] || 15 }));
-    clotures.forEach(rowData => {
-        const row = ws3.addRow(OUTPUT_HEADERS.map(h => cellValue(h, rowData[h])));
-        row.getCell(dateColIdx).numFmt = 'DD/MM/YYYY';
-        [reclamIdx, debVivIdx, debAxaIdx].forEach(ci => { row.getCell(ci).numFmt = '#,##0.00'; });
-    });
-    styleHeaders(ws3, OUTPUT_HEADERS);
-    styleDataRows(ws3, clotures.length, null);
-    ws3.autoFilter = { from: {row:1,column:1}, to: {row:clotures.length+1,column:OUTPUT_HEADERS.length} };
+    addDataSheet(ws3, clotures);
 
     // ═══ ONGLET 4 : Synthèse par commune ═══
     const byCommune = {};
