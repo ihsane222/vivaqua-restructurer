@@ -412,6 +412,150 @@
             color: white;
             border-color: var(--success);
         }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 16px;
+            padding: 28px;
+            width: 480px;
+            max-width: 90vw;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .modal h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+        .modal label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text2);
+            margin-bottom: 6px;
+            margin-top: 14px;
+        }
+        .modal input, .modal textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .modal input:focus, .modal textarea:focus {
+            border-color: var(--accent);
+        }
+        .modal textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .modal .hint {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+        .modal .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+        .modal .btn-modal {
+            padding: 9px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: white;
+            color: var(--text);
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .modal .btn-modal:hover { border-color: var(--accent); }
+        .modal .btn-modal.primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        .modal .btn-modal.primary:hover { background: var(--accent-hover); }
+
+        /* API key bar */
+        .api-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 14px;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+        .api-bar label { color: var(--text2); white-space: nowrap; font-weight: 500; }
+        .api-bar input {
+            flex: 1;
+            padding: 7px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: monospace;
+            color: var(--text);
+            outline: none;
+        }
+        .api-bar input:focus { border-color: var(--accent); }
+        .api-bar .api-hint { font-size: 11px; color: #94a3b8; }
+
+        /* Custom col description badge */
+        .col-item .col-desc {
+            font-size: 11px;
+            color: #94a3b8;
+            font-style: italic;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* AI processing indicator */
+        .ai-processing {
+            display: none;
+            padding: 12px 16px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-size: 14px;
+            color: var(--accent);
+        }
+        .ai-processing.show { display: block; }
+        .ai-spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid #bfdbfe;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -446,12 +590,18 @@
                 <button class="btn-sm" id="presetCustom" onclick="applyPreset('custom')">Personnalise</button>
             </div>
 
+            <div class="api-bar" id="apiBar" style="display:none;">
+                <label>Cle API Groq :</label>
+                <input type="password" id="groqApiKey" placeholder="gsk_..." value="">
+                <span class="api-hint">Gratuit sur groq.com — necessaire pour les colonnes IA</span>
+            </div>
+
             <div class="col-editor-header">
                 <div class="col-count" id="colCount">0 colonnes selectionnees</div>
                 <div class="actions">
                     <button class="btn-sm" onclick="selectAllCols()">Tout cocher</button>
                     <button class="btn-sm" onclick="deselectAllCols()">Tout decocher</button>
-                    <button class="btn-sm" onclick="addCustomColumn()">+ Colonne</button>
+                    <button class="btn-sm" onclick="openAddColumnModal()" style="background:var(--accent); color:white; border-color:var(--accent);">+ Colonne IA</button>
                 </div>
             </div>
 
@@ -505,8 +655,24 @@
         </div>
 
         <footer>
-            Outil interne DAP — Traitement 100% local (aucune donnée envoyée)
+            Outil interne DAP — Traitement local + IA optionnelle pour colonnes custom
         </footer>
+
+        <!-- Modal: Ajouter colonne IA -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal">
+                <h3>Ajouter une colonne intelligente</h3>
+                <label>Nom de la colonne</label>
+                <input type="text" id="modalColName" placeholder="Ex: Zone geographique, Priorite, Categorie...">
+                <label>Description (langage libre)</label>
+                <textarea id="modalColDesc" placeholder="Decrivez ce que la colonne doit contenir. L'IA remplira chaque ligne en se basant sur les donnees du dossier.&#10;&#10;Exemples :&#10;- Classe le montant en tranches : < 1000, 1000-5000, 5000-20000, > 20000&#10;- Zone geographique basee sur la commune : Nord, Sud, Est, Ouest, Centre&#10;- Resume en une phrase le commentaire du dossier&#10;- Niveau de risque (Faible/Moyen/Eleve) base sur le montant et l'anciennete"></textarea>
+                <div class="hint">L'IA analysera chaque ligne du tableau et remplira cette colonne selon votre description. Necessite une cle API Groq (gratuite).</div>
+                <div class="modal-actions">
+                    <button class="btn-modal" onclick="closeModal()">Annuler</button>
+                    <button class="btn-modal primary" onclick="confirmAddColumn()">Ajouter</button>
+                </div>
+            </div>
+        </div>
     </div>
 
 <script>
@@ -882,10 +1048,13 @@ function renderColumnEditor() {
                           col.type === 'extracted' ? 'Extrait' :
                           col.type === 'derived' ? 'Calcule' : 'Custom';
 
+        const descHtml = col.description ? `<span class="col-desc" title="${esc(col.description)}">${esc(col.description)}</span>` : '';
+
         li.innerHTML = `
             <span class="grip">&#9776;</span>
             <input type="checkbox" ${col.enabled ? 'checked' : ''} onchange="toggleCol(${col.id}, this.checked)">
             <span class="col-name"><input type="text" value="${esc(col.name)}" onchange="renameCol(${col.id}, this.value)"></span>
+            ${descHtml}
             <span class="col-badge ${badgeClass}">${badgeText}</span>
             <span class="col-actions">
                 <button title="Monter" onclick="moveCol(${idx}, -1)">&#9650;</button>
@@ -939,10 +1108,36 @@ function removeCol(id) {
     updateColCount();
 }
 
-function addCustomColumn() {
-    const name = prompt("Nom de la nouvelle colonne :");
-    if (!name || !name.trim()) return;
-    columnDefs.push({ id: colIdCounter++, name: name.trim(), type: 'custom', enabled: true, source: null });
+function openAddColumnModal() {
+    document.getElementById('modalColName').value = '';
+    document.getElementById('modalColDesc').value = '';
+    document.getElementById('modalOverlay').classList.add('show');
+    document.getElementById('modalColName').focus();
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function confirmAddColumn() {
+    const name = document.getElementById('modalColName').value.trim();
+    const desc = document.getElementById('modalColDesc').value.trim();
+    if (!name) { alert("Entrez un nom de colonne."); return; }
+    if (!desc) { alert("Entrez une description pour que l'IA sache quoi remplir."); return; }
+
+    columnDefs.push({
+        id: colIdCounter++,
+        name: name,
+        type: 'custom',
+        enabled: true,
+        source: null,
+        description: desc // <- used by AI to fill
+    });
+
+    // Show API key bar if first custom column
+    document.getElementById('apiBar').style.display = 'flex';
+
+    closeModal();
     renderColumnEditor();
     updateColCount();
 }
@@ -988,76 +1183,192 @@ function updateColCount() {
 //  PROCESSING (uses column editor config)
 // ══════════════════════════════════════
 
-function processData() {
-    if (!rawData) return;
+let activeHeaders = [];
 
-    document.getElementById('btnProcess').disabled = true;
-    document.getElementById('progressSection').classList.add('show');
+async function processData() {
+    if (!rawData) return;
 
     const enabledCols = columnDefs.filter(c => c.enabled);
     if (!enabledCols.length) { alert("Selectionnez au moins une colonne."); return; }
+
+    // Check if custom columns need API key
+    const customCols = enabledCols.filter(c => c.type === 'custom' && c.description);
+    if (customCols.length) {
+        const apiKey = (document.getElementById('groqApiKey').value || '').trim();
+        if (!apiKey) {
+            alert("Entrez votre cle API Groq pour remplir les colonnes IA.\n\nObtenez-la gratuitement sur console.groq.com");
+            return;
+        }
+    }
+
+    document.getElementById('btnProcess').disabled = true;
+    document.getElementById('progressSection').classList.add('show');
 
     const total = rawData.length;
     resultData = [];
     let okCount = 0, partialCount = 0, emptyCount = 0;
 
-    let i = 0;
-    const CHUNK = 50;
+    // ── Phase 1 : Parsing regex (instantane) ──
+    for (let i = 0; i < total; i++) {
+        const row = rawData[i];
+        const fullRow = {};
 
-    function processChunk() {
-        const end = Math.min(i + CHUNK, total);
-        for (; i < end; i++) {
-            const row = rawData[i];
-            const fullRow = {};
-
-            // Direct copy from source
-            for (const [src, dst] of Object.entries(DIRECT_MAP)) {
-                if (src in row) fullRow[dst] = normalize(row[src]);
-            }
-
-            // Extract from "Risque/ partie adverse"
-            const parsed = parseRisque(row["Risque/ partie adverse"]);
-            fullRow["Rue"] = parsed.Rue;
-            fullRow["Numero"] = parsed.Numéro || parsed.Numero || "";
-            fullRow["Numéro"] = parsed.Numéro || parsed.Numero || "";
-            fullRow["Code postal"] = parsed.CodePostal;
-            fullRow["Commune"] = parsed.Commune;
-            fullRow["Parties adverses"] = parsed.Parties;
-            fullRow["Assureur adverse"] = parsed.Assureur;
-
-            // Situation Dossier
-            fullRow["Situation Dossier"] = extractSituation(fullRow["Commentaires"] || "");
-
-            // Build output row with only enabled columns in order
-            const out = {};
-            enabledCols.forEach(col => {
-                out[col.name] = fullRow[col.name] || "";
-            });
-
-            resultData.push(out);
-
-            if (parsed.Rue) okCount++;
-            else if (normalize(row["Risque/ partie adverse"])) partialCount++;
-            else emptyCount++;
+        for (const [src, dst] of Object.entries(DIRECT_MAP)) {
+            if (src in row) fullRow[dst] = normalize(row[src]);
         }
 
-        const pct = Math.round((i / total) * 100);
-        document.getElementById('progressBar').style.width = pct + '%';
-        document.getElementById('progressText').textContent = `${i} / ${total} lignes traitees`;
+        const parsed = parseRisque(row["Risque/ partie adverse"]);
+        fullRow["Rue"] = parsed.Rue;
+        fullRow["Numero"] = parsed.Numéro || parsed.Numero || "";
+        fullRow["Numéro"] = parsed.Numéro || parsed.Numero || "";
+        fullRow["Code postal"] = parsed.CodePostal;
+        fullRow["Commune"] = parsed.Commune;
+        fullRow["Parties adverses"] = parsed.Parties;
+        fullRow["Assureur adverse"] = parsed.Assureur;
+        fullRow["Situation Dossier"] = extractSituation(fullRow["Commentaires"] || "");
 
-        if (i < total) {
-            requestAnimationFrame(processChunk);
-        } else {
-            // Update OUTPUT_HEADERS to match user's selection
-            activeHeaders = enabledCols.map(c => c.name);
-            showResults(okCount, partialCount, emptyCount);
+        const out = {};
+        enabledCols.forEach(col => {
+            out[col.name] = fullRow[col.name] || "";
+        });
+        resultData.push(out);
+
+        if (parsed.Rue) okCount++;
+        else if (normalize(row["Risque/ partie adverse"])) partialCount++;
+        else emptyCount++;
+
+        if (i % 100 === 0) {
+            const pct = Math.round((i / total) * 50); // 0-50%
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressText').textContent = `Parsing : ${i} / ${total} lignes`;
+            await new Promise(r => setTimeout(r, 0)); // yield to UI
         }
     }
 
-    requestAnimationFrame(processChunk);
+    document.getElementById('progressBar').style.width = '50%';
+    document.getElementById('progressText').textContent = `Parsing termine — ${total} lignes`;
+
+    activeHeaders = enabledCols.map(c => c.name);
+
+    // ── Phase 2 : Colonnes IA (si besoin) ──
+    if (customCols.length) {
+        document.getElementById('progressText').textContent = `Remplissage IA de ${customCols.length} colonne(s)...`;
+        await fillCustomColumnsWithAI(customCols, enabledCols);
+    }
+
+    document.getElementById('progressBar').style.width = '100%';
+    showResults(okCount, partialCount, emptyCount);
 }
 
-let activeHeaders = []; // set after processing
+// ── AI Fill Logic ──
+async function fillCustomColumnsWithAI(customCols, enabledCols) {
+    const apiKey = document.getElementById('groqApiKey').value.trim();
+    const BATCH = 10;
+    const total = resultData.length;
+    const totalBatches = Math.ceil(total / BATCH);
+
+    // Build column descriptions
+    const colDescs = customCols.map(c => `- "${c.name}": ${c.description}`).join('\n');
+
+    // Context columns = non-custom enabled columns (max 8 most useful)
+    const contextCols = enabledCols
+        .filter(c => c.type !== 'custom')
+        .map(c => c.name)
+        .slice(0, 10);
+
+    for (let b = 0; b < total; b += BATCH) {
+        const batchRows = resultData.slice(b, b + BATCH);
+        const batchNum = Math.floor(b / BATCH) + 1;
+
+        // Build context for each row (only useful columns to save tokens)
+        const rowsText = batchRows.map((row, idx) => {
+            const vals = contextCols.map(c => `${c}: ${row[c] || '(vide)'}`).join(' | ');
+            return `Ligne ${idx}: ${vals}`;
+        }).join('\n');
+
+        const prompt = `Tu es un assistant qui remplit des colonnes de donnees.
+
+Colonnes a remplir :
+${colDescs}
+
+Donnees source (${batchRows.length} lignes) :
+${rowsText}
+
+Reponds UNIQUEMENT en JSON valide : {"rows": [{"${customCols.map(c => c.name).join('","')}": "..."}]}
+Chaque objet dans "rows" contient exactement les colonnes demandees.
+Si tu ne peux pas determiner la valeur, mets "".`;
+
+        try {
+            const resp = await callGroqForCustom(apiKey, prompt);
+            if (resp && resp.rows) {
+                resp.rows.forEach((aiRow, idx) => {
+                    if (b + idx < total) {
+                        customCols.forEach(col => {
+                            const val = aiRow[col.name];
+                            if (val !== undefined && val !== null) {
+                                resultData[b + idx][col.name] = String(val);
+                            }
+                        });
+                    }
+                });
+            }
+        } catch (err) {
+            console.warn(`Batch ${batchNum} AI error:`, err);
+        }
+
+        // Progress 50-100%
+        const pct = 50 + Math.round((batchNum / totalBatches) * 50);
+        document.getElementById('progressBar').style.width = pct + '%';
+        document.getElementById('progressText').textContent = `IA : lot ${batchNum}/${totalBatches}`;
+
+        // Rate limit pause
+        if (b + BATCH < total) {
+            await new Promise(r => setTimeout(r, 3000));
+        }
+    }
+}
+
+async function callGroqForCustom(apiKey, prompt, retries = 3) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    temperature: 0,
+                    max_tokens: 4096,
+                    response_format: { type: 'json_object' },
+                    messages: [
+                        { role: 'system', content: 'Tu remplis des colonnes de donnees structurees. Reponds UNIQUEMENT en JSON valide.' },
+                        { role: 'user', content: prompt }
+                    ]
+                })
+            });
+
+            if (resp.status === 429) {
+                const wait = Math.min(60, (attempt + 1) * 12);
+                document.getElementById('progressText').textContent += ` (rate limit, attente ${wait}s...)`;
+                await new Promise(r => setTimeout(r, wait * 1000));
+                continue;
+            }
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+            const data = await resp.json();
+            const content = data.choices[0].message.content;
+            return JSON.parse(content);
+        } catch (err) {
+            if (attempt < retries) {
+                await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+                continue;
+            }
+            throw err;
+        }
+    }
+}
 
 function showResults(ok, partial, empty) {
     document.getElementById('progressSection').classList.remove('show');
