@@ -1263,18 +1263,17 @@ async function processData() {
 // ── AI Fill Logic ──
 async function fillCustomColumnsWithAI(customCols, enabledCols) {
     const apiKey = document.getElementById('groqApiKey').value.trim();
-    const BATCH = 10;
+    const BATCH = 30;
     const total = resultData.length;
     const totalBatches = Math.ceil(total / BATCH);
 
     // Build column descriptions
     const colDescs = customCols.map(c => `- "${c.name}": ${c.description}`).join('\n');
 
-    // Context columns = non-custom enabled columns (max 8 most useful)
-    const contextCols = enabledCols
-        .filter(c => c.type !== 'custom')
-        .map(c => c.name)
-        .slice(0, 10);
+    // Context columns = only the most useful for AI decisions
+    const priorityCols = ["Réf. DAP","Date sinistre","Commune","Statut","Réclamation","Commentaires","Rue","Parties adverses"];
+    const availableCols = enabledCols.filter(c => c.type !== 'custom').map(c => c.name);
+    const contextCols = priorityCols.filter(c => availableCols.includes(c)).slice(0, 6);
 
     for (let b = 0; b < total; b += BATCH) {
         const batchRows = resultData.slice(b, b + BATCH);
@@ -1321,9 +1320,9 @@ Si tu ne peux pas determiner la valeur, mets "".`;
         document.getElementById('progressBar').style.width = pct + '%';
         document.getElementById('progressText').textContent = `IA : lot ${batchNum}/${totalBatches}`;
 
-        // Rate limit pause
+        // Rate limit pause (minimal)
         if (b + BATCH < total) {
-            await new Promise(r => setTimeout(r, 3000));
+            await new Promise(r => setTimeout(r, 1000));
         }
     }
 }
