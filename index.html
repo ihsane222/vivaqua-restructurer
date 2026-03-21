@@ -1263,7 +1263,7 @@ async function processData() {
 // ── AI Fill Logic ──
 async function fillCustomColumnsWithAI(customCols, enabledCols) {
     const apiKey = document.getElementById('groqApiKey').value.trim();
-    const BATCH = 30;
+    const BATCH = 5;
     const total = resultData.length;
     const totalBatches = Math.ceil(total / BATCH);
 
@@ -1281,7 +1281,7 @@ async function fillCustomColumnsWithAI(customCols, enabledCols) {
 
         // Build context for each row (only useful columns to save tokens)
         const rowsText = batchRows.map((row, idx) => {
-            const vals = contextCols.map(c => `${c}: ${row[c] || '(vide)'}`).join(' | ');
+            const vals = contextCols.map(c => `${c}: ${(row[c] || '').substring(0, 50)}`).join(' | ');
             return `Ligne ${idx}: ${vals}`;
         }).join('\n');
 
@@ -1320,9 +1320,9 @@ Si tu ne peux pas determiner la valeur, mets "".`;
         document.getElementById('progressBar').style.width = pct + '%';
         document.getElementById('progressText').textContent = `IA : lot ${batchNum}/${totalBatches}`;
 
-        // Rate limit pause (minimal)
+        // Rate limit pause — Groq free tier = ~30 RPM
         if (b + BATCH < total) {
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 8000));
         }
     }
 }
@@ -1337,9 +1337,9 @@ async function callGroqForCustom(apiKey, prompt, retries = 3) {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
+                    model: 'llama-3.1-8b-instant',
                     temperature: 0,
-                    max_tokens: 4096,
+                    max_tokens: 1024,
                     response_format: { type: 'json_object' },
                     messages: [
                         { role: 'system', content: 'Tu remplis des colonnes de donnees structurees. Reponds UNIQUEMENT en JSON valide.' },
