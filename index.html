@@ -562,7 +562,7 @@
     <div class="container">
         <header>
             <h1>Vivaqua — Restructuration Sinistres</h1>
-            <p>Transforme le tableau brut en 28 colonnes structurées — traitement 100% local, instantané</p>
+            <p>Transforme le tableau brut en 30 colonnes structurées — traitement 100% local, instantané</p>
         </header>
 
         <!-- Step 1: Upload -->
@@ -575,6 +575,13 @@
                 <input type="file" id="fileInput" accept=".xlsx,.xls">
             </div>
             <div class="file-info" id="fileInfo"></div>
+
+            <div id="geoUploadSection" style="display:none; margin-top:16px; padding:14px 18px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px;">
+                <div style="font-size:14px; font-weight:600; color:#1e40af; margin-bottom:6px;">Coordonnees geographiques (optionnel)</div>
+                <p style="font-size:13px; color:#64748b; margin-bottom:10px;">Importez le "new table" pour recuperer les coordonnees GPS associees aux adresses.</p>
+                <input type="file" id="geoFileInput" accept=".xlsx,.xls" style="font-size:13px;">
+                <div class="file-info" id="geoInfo" style="font-size:13px;"></div>
+            </div>
         </div>
 
         <!-- Step 2: Column Editor -->
@@ -585,7 +592,7 @@
             </p>
 
             <div class="preset-bar">
-                <button class="btn-sm active" id="presetFull" onclick="applyPreset('full')">Vivaqua Complet (28 col.)</button>
+                <button class="btn-sm active" id="presetFull" onclick="applyPreset('full')">Vivaqua Complet (30 col.)</button>
                 <button class="btn-sm" id="presetMinimal" onclick="applyPreset('minimal')">Essentiel (15 col.)</button>
                 <button class="btn-sm" id="presetCustom" onclick="applyPreset('custom')">Personnalise</button>
             </div>
@@ -919,31 +926,37 @@ function extractSituation(comment) {
 // ═══════════════════════════════════════════════════════
 
 const OUTPUT_HEADERS = [
-    "Réf. DAP","N° OT","DIR","Date sinistre",
-    "Rue","Numéro","Code postal","Commune",
-    "Parties adverses","Assureur adverse",
+    "ID",
+    "Réf. Dap","numéro OT","DIR",
+    "Réf. Expert","Bureau d'expertise","Expert",
+    "Réf. Avocat","Nom Avocat",
+    "Réf. Assureur","Date sinistre",
+    "Numéro","Rue","Code postal","Commune",
+    "Coordonnées Géographique",
+    "Parties adverses",
     "Nature des dégâts","Circonstances",
-    "Responsabilité Vivaqua","Art. 544","Sous-traitant",
+    "responsabilité vivaqua (O/N)","544 ? (O/N)","sous-traitant",
     "Réclamation","Débours Vivaqua","Débours AXA",
     "Statut","Situation Dossier","Commentaires",
-    "Formule déclaration","Gestionnaire",
-    "Réf. Assureur","Réf. Expert","Bureau d'expertise","Nom Expert","Avocat"
+    "Formule de Déclaration","Gestionnaire"
 ];
 
 const DIRECT_MAP = {
-    "Réf. Dap":"Réf. DAP", "numéro OT":"N° OT", "DIR":"DIR",
+    "Réf. Dap":"Réf. Dap", "numéro OT":"numéro OT", "DIR":"DIR",
     "Date sinistre":"Date sinistre", "Nature des dégâts":"Nature des dégâts",
     "Circonstances":"Circonstances",
-    "responsabilité vivaqua (O/N)":"Responsabilité Vivaqua",
-    "544 ? (O/N)":"Art. 544", "sous-traitant":"Sous-traitant",
+    "responsabilité vivaqua (O/N)":"responsabilité vivaqua (O/N)",
+    "544 ? (O/N)":"544 ? (O/N)", "sous-traitant":"sous-traitant",
     "Réclamation":"Réclamation", "Débours Vivaqua":"Débours Vivaqua",
     "Débours AXA":"Débours AXA", "Statut":"Statut",
-    "Commentaires":"Commentaires", "formule O/N":"Formule déclaration",
+    "Commentaires":"Commentaires", "formule O/N":"Formule de Déclaration",
     "Gestionnaire ":"Gestionnaire", "Gestionnaire":"Gestionnaire",
     "Réf. Assureur":"Réf. Assureur", "Réf. Expert":"Réf. Expert",
-    "Bureau d'expertise":"Bureau d'expertise", "Expert":"Nom Expert",
-    "Avocat":"Avocat"
+    "Bureau d'expertise":"Bureau d'expertise", "Expert":"Expert"
 };
+
+// Geo lookup: sera rempli depuis le new table si uploadé, sinon vide
+let GEO_LOOKUP = {};
 
 // ═══════════════════════════════════════════════════════
 // UI
@@ -961,6 +974,34 @@ dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dra
 dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
 dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
 fi.addEventListener('change', () => { if (fi.files[0]) handleFile(fi.files[0]); });
+
+// Geo file handler
+const geoFi = document.getElementById('geoFileInput');
+geoFi.addEventListener('change', () => { if (geoFi.files[0]) loadGeoFile(geoFi.files[0]); });
+
+function loadGeoFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, {defval:""});
+        let count = 0;
+        GEO_LOOKUP = {};
+        json.forEach(row => {
+            const coord = row["Coordonnées Géographique"] || row["Coordonnees Geographique"] || "";
+            const cp = String(row["Code postal"] || "").trim();
+            const rue = String(row["Rue"] || "").trim().toLowerCase();
+            if (coord && cp && rue) {
+                GEO_LOOKUP[cp + "|" + rue] = String(coord).trim();
+                count++;
+            }
+        });
+        const info = document.getElementById('geoInfo');
+        info.textContent = `\u2705 ${count} coordonnees chargees depuis "${file.name}"`;
+        info.classList.add('show');
+    };
+    reader.readAsArrayBuffer(file);
+}
 
 function handleFile(file) {
     if (!file) return;
@@ -992,6 +1033,7 @@ function handleFile(file) {
         // Init column editor
         initColumnEditor();
         document.getElementById('columnsCard').style.display = 'block';
+        document.getElementById('geoUploadSection').style.display = 'block';
     };
     reader.readAsArrayBuffer(file);
 }
@@ -1006,9 +1048,9 @@ let columnDefs = [];
 let colIdCounter = 0;
 
 // Extracted column names (from regex parser)
-const EXTRACTED_COLS = ["Rue","Numero","Code postal","Commune","Parties adverses","Assureur adverse"];
+const EXTRACTED_COLS = ["Numéro","Rue","Code postal","Commune","Coordonnées Géographique","Parties adverses"];
 // Derived columns
-const DERIVED_COLS = ["Situation Dossier"];
+const DERIVED_COLS = ["ID","Réf. Avocat","Nom Avocat","Situation Dossier"];
 
 function initColumnEditor() {
     columnDefs = [];
@@ -1162,9 +1204,9 @@ function applyPreset(preset) {
         columnDefs.forEach(c => c.enabled = true);
     } else if (preset === 'minimal') {
         // Only essential columns
-        const essential = ["Ref. DAP","Ref DAP","Réf. DAP","Date sinistre","Rue","Numero","Numéro","Code postal","Commune",
-                           "Parties adverses","Assureur adverse","Statut","Responsabilite Vivaqua","Responsabilité Vivaqua",
-                           "Reclamation","Réclamation","Situation Dossier"];
+        const essential = ["ID","Réf. Dap","Date sinistre","Rue","Numéro","Code postal","Commune",
+                           "Parties adverses","Statut","responsabilité vivaqua (O/N)",
+                           "Réclamation","Situation Dossier","Gestionnaire"];
         columnDefs.forEach(c => {
             c.enabled = essential.some(e => c.name === e || c.name.toLowerCase() === e.toLowerCase());
         });
@@ -1213,18 +1255,44 @@ async function processData() {
         const row = rawData[i];
         const fullRow = {};
 
+        // ID auto-incrémenté
+        fullRow["ID"] = i + 1;
+
         for (const [src, dst] of Object.entries(DIRECT_MAP)) {
             if (src in row) fullRow[dst] = normalize(row[src]);
         }
 
+        // Split "Avocat" → "Réf. Avocat" + "Nom Avocat"
+        const avocatRaw = normalize(row["Avocat"] || "");
+        if (avocatRaw) {
+            // Si contient un tiret ou espace avec des mots, c'est un nom
+            const refMatch = avocatRaw.match(/^(\d[\d\-\/]*)/);
+            if (refMatch) {
+                fullRow["Réf. Avocat"] = refMatch[1];
+                fullRow["Nom Avocat"] = avocatRaw.replace(refMatch[0], "").replace(/^[\s\-]+/, "").trim();
+            } else {
+                fullRow["Réf. Avocat"] = "";
+                fullRow["Nom Avocat"] = avocatRaw;
+            }
+        } else {
+            fullRow["Réf. Avocat"] = "";
+            fullRow["Nom Avocat"] = "";
+        }
+
         const parsed = parseRisque(row["Risque/ partie adverse"]);
         fullRow["Rue"] = parsed.Rue;
-        fullRow["Numero"] = parsed.Numéro || parsed.Numero || "";
         fullRow["Numéro"] = parsed.Numéro || parsed.Numero || "";
         fullRow["Code postal"] = parsed.CodePostal;
         fullRow["Commune"] = parsed.Commune;
-        fullRow["Parties adverses"] = parsed.Parties;
-        fullRow["Assureur adverse"] = parsed.Assureur;
+        // Fusionner parties + assureur en "Parties adverses" (comme dans le new table)
+        const parts = [parsed.Parties, parsed.Assureur].filter(Boolean);
+        fullRow["Parties adverses"] = parts.join(" + ");
+
+        // Coordonnées géographiques via lookup
+        const cp = parsed.CodePostal;
+        const rue = (parsed.Rue || "").toLowerCase().trim();
+        fullRow["Coordonnées Géographique"] = (cp && rue && GEO_LOOKUP[cp + "|" + rue]) || "";
+
         fullRow["Situation Dossier"] = extractSituation(fullRow["Commentaires"] || "");
 
         const out = {};
@@ -1271,7 +1339,7 @@ async function fillCustomColumnsWithAI(customCols, enabledCols) {
     const colDescs = customCols.map(c => `- "${c.name}": ${c.description}`).join('\n');
 
     // Context columns = only the most useful for AI decisions
-    const priorityCols = ["Réf. DAP","Date sinistre","Commune","Statut","Réclamation","Commentaires","Rue","Parties adverses"];
+    const priorityCols = ["Réf. Dap","Date sinistre","Commune","Statut","Réclamation","Commentaires","Rue","Parties adverses"];
     const availableCols = enabledCols.filter(c => c.type !== 'custom').map(c => c.name);
     const contextCols = priorityCols.filter(c => availableCols.includes(c)).slice(0, 6);
 
@@ -1401,16 +1469,18 @@ function esc(s) {
 
 // ── Helpers Excel ──
 const COL_WIDTHS = {
-    "Réf. DAP":14,"N° OT":14,"DIR":8,"Date sinistre":14,
-    "Rue":30,"Numéro":10,"Code postal":12,"Commune":22,
-    "Parties adverses":28,"Assureur adverse":18,
+    "ID":6,"Réf. Dap":14,"numéro OT":14,"DIR":8,
+    "Réf. Expert":16,"Bureau d'expertise":18,"Expert":18,
+    "Réf. Avocat":14,"Nom Avocat":22,
+    "Réf. Assureur":16,"Date sinistre":14,
+    "Numéro":10,"Rue":30,"Code postal":12,"Commune":22,
+    "Coordonnées Géographique":24,
+    "Parties adverses":28,
     "Nature des dégâts":20,"Circonstances":35,
-    "Responsabilité Vivaqua":14,"Art. 544":10,"Sous-traitant":16,
+    "responsabilité vivaqua (O/N)":14,"544 ? (O/N)":10,"sous-traitant":16,
     "Réclamation":14,"Débours Vivaqua":16,"Débours AXA":14,
     "Statut":12,"Situation Dossier":24,"Commentaires":40,
-    "Formule déclaration":14,"Gestionnaire":22,
-    "Réf. Assureur":18,"Réf. Expert":22,"Bureau d'expertise":18,
-    "Nom Expert":18,"Avocat":22
+    "Formule de Déclaration":14,"Gestionnaire":22
 };
 
 const HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1B3A5C' } };
@@ -1626,7 +1696,7 @@ async function downloadResult() {
         if ((r["Statut"]||"").toLowerCase().includes("ouvert")) byYear[yr].ouverts++;
         const n = parseNum(r["Réclamation"]);
         if (n) byYear[yr].reclam += n;
-        if ((r["Responsabilité Vivaqua"]||"").trim() === "O") byYear[yr].respO++;
+        if ((r["responsabilité vivaqua (O/N)"]||"").trim() === "O") byYear[yr].respO++;
     });
     const yearRows = Object.entries(byYear).sort((a,b) => +a[0] - +b[0]);
 
@@ -1742,13 +1812,13 @@ function downloadPDF() {
     const avgReclam = activeReclam.length ? totalReclam / activeReclam.length : 0;
 
     const topCostly = resultData
-        .map(r => ({ ref: r["Ref. DAP"]||r["Réf. DAP"], montant: pNum(r["Reclamation"]||r["Réclamation"]), rue: r["Rue"], commune: r["Commune"] }))
+        .map(r => ({ ref: r["Réf. Dap"], montant: pNum(r["Réclamation"]), rue: r["Rue"], commune: r["Commune"] }))
         .filter(r => r.montant > 0).sort((a,b) => b.montant-a.montant).slice(0,5);
 
-    const respO = resultData.filter(r => (r["Responsabilite Vivaqua"]||r["Responsabilité Vivaqua"]||"").trim()==="O").length;
-    const respN = resultData.filter(r => (r["Responsabilite Vivaqua"]||r["Responsabilité Vivaqua"]||"").trim()==="N").length;
+    const respO = resultData.filter(r => (r["responsabilité vivaqua (O/N)"]||"").trim()==="O").length;
+    const respN = resultData.filter(r => (r["responsabilité vivaqua (O/N)"]||"").trim()==="N").length;
     const respInd = total - respO - respN;
-    const art544 = resultData.filter(r => (r["Art. 544"]||"").trim()==="O").length;
+    const art544 = resultData.filter(r => (r["544 ? (O/N)"]||"").trim()==="O").length;
 
     const bySituation = {};
     resultData.forEach(r => { const s = r["Situation Dossier"]||"Non defini"; bySituation[s]=(bySituation[s]||0)+1; });
@@ -1764,9 +1834,14 @@ function downloadPDF() {
     const topGest = Object.entries(byGest).sort((a,b) => b[1].total-a[1].total).slice(0,10);
 
     const byAssureur = {};
+    const assurNames = [...ASSUREURS].map(a => a.toUpperCase());
     resultData.forEach(r => {
-        const a = r["Assureur adverse"];
-        if (a) a.split("+").map(s=>s.trim()).filter(Boolean).forEach(s => { byAssureur[s]=(byAssureur[s]||0)+1; });
+        const pa = r["Parties adverses"] || "";
+        pa.split("+").map(s=>s.trim()).filter(Boolean).forEach(s => {
+            if (assurNames.includes(s.toUpperCase()) || ASSUREURS.has(s)) {
+                byAssureur[s]=(byAssureur[s]||0)+1;
+            }
+        });
     });
     const topAssureur = Object.entries(byAssureur).sort((a,b) => b[1]-a[1]).slice(0,10);
 
@@ -1789,12 +1864,12 @@ function downloadPDF() {
     const topExpert = Object.entries(byExpert).sort((a,b) => b[1]-a[1]).slice(0,5);
 
     const bySousTrait = {};
-    resultData.forEach(r => { const s = r["Sous-traitant"]; if (s) bySousTrait[s]=(bySousTrait[s]||0)+1; });
+    resultData.forEach(r => { const s = r["sous-traitant"]; if (s) bySousTrait[s]=(bySousTrait[s]||0)+1; });
     const topSousTrait = Object.entries(bySousTrait).sort((a,b) => b[1]-a[1]).slice(0,5);
 
     const openOld = resultData
         .filter(r => (r["Statut"]||"").toLowerCase().includes("ouvert"))
-        .map(r => { const d=pDate(r["Date sinistre"]); return { ref: r["Ref. DAP"]||r["Réf. DAP"], date: r["Date sinistre"], days: d ? Math.floor((now-d)/86400000) : 0, commune: r["Commune"] }; })
+        .map(r => { const d=pDate(r["Date sinistre"]); return { ref: r["Réf. Dap"], date: r["Date sinistre"], days: d ? Math.floor((now-d)/86400000) : 0, commune: r["Commune"] }; })
         .filter(r => r.days > 365).sort((a,b) => b.days-a.days).slice(0,10);
 
     // ══════ DRAWING HELPERS ══════
